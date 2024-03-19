@@ -1,0 +1,49 @@
+{
+  "name": "jl-search",
+  "version": "0.0.1",
+  "description": "Incremental search and select with autocomplete as a flexible web component",
+  "main": "jl-search.mjs",
+	"module": "jl-search.mjs",
+	"type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aigan/jl-search.git"
+  },
+	"homepage": "https://wiki.para.se/",
+  "keywords": [
+    "autocomplete",
+    "complete",
+    "component",
+    "dropdown",
+    "javascript",
+    "lightweight",
+    "list",
+    "suggester",
+    "ui",
+    "vanilla",
+    "widget",
+    "autosuggest",
+    "typeahead",
+    "incremental",
+    "progressive",
+    "typeahead",
+    "instant",
+    "customelement",
+    "web-component",
+    "custom-element",
+    "search-dropdown"
+  ],
+  "author": {
+		"name": "Jonas Liljegren",
+		"email": "jonas@liljegren.org",
+		"url": "http://jonas.liljegren.org/"
+	},
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/aigan/jl-search/issues"
+  },
+  "homepage": "https://github.com/aigan/jl-search#readme"
+}
