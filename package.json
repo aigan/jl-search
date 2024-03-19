@@ -1,6 +1,6 @@
 {
   "name": "jl-search",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Incremental search and select with autocomplete as a flexible web component",
   "main": "jl-search.mjs",
   "module": "jl-search.mjs",
