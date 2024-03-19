@@ -2,7 +2,8 @@ jl-search {
   display: inline-block;
 
   --_padding: var(--padding, .5em);
-  --_shadow-color: var(--c-outline );
+  --_outline-color: var(--c-outline );
+  --_shadow-color: var(--c-shadow);
   --_hover-color: var(--c-on-surface );
   --_focus-color: var(--c-primary);
   --_disabled-color: var(--c-outline-a33);
@@ -13,18 +14,9 @@ jl-search {
   --_border-radius: .35rem;
   --_hr-color: var(--c-surface-dim);
 
-  /* --_ring-disabled: 0 0 0 var(--_border-width) var(--_disabled-color);
-  --_ring-unselected: 0 0 0 var(--_border-width) var(--_shadow-color);
-  --_ring-focus: 0 0 0 var(--_border-width-focus) var(--_focus-color);
-  --_ring-hover: 0 0 0 var(--_border-width) var(--_hover-color); */
-
+  --_drop-shadow: 0 .8rem 1rem 0 rgba(0 0 0 / .5);
 
   font-family: var(--font-family, sans-serif);
-}
-
-jl-search:hover>label {
-  /* box-shadow: var(--_ring-hover); */
-  outline-color: var(--_hover-color);
 }
 
 jl-search>label>.material-symbols-outlined {
@@ -53,8 +45,11 @@ jl-search input:focus-within {
   border: none;
 }
 
+jl-search:hover>label {
+  outline-color: var(--_hover-color);
+}
+
 jl-search>label {
-  /* box-shadow: var(--_ring-unselected); */
   display: flex;
   align-items: center;
   gap: var(--_padding);
@@ -64,14 +59,13 @@ jl-search>label {
   background: var(--_field-bg);
   transition: box-shadow .2s;
 
-  outline: var(--_border-width) solid var(--_shadow-color);
-  /* margin: calc( -1 * var(--_border-width) ); */
+  /* Using outline for stable position when outline width changes */
+  outline: var(--_border-width) solid var(--_outline-color);
+
 }
 
 jl-search>label:focus-within {
-  /* box-shadow: var(--_ring-focus); */
   outline: var(--_border-width-focus) solid var(--_focus-color);
-  /* margin: calc( -1 * var(--_border-width-focus) ); */
 }
 
 jl-search:has(input:disabled) {
@@ -79,29 +73,41 @@ jl-search:has(input:disabled) {
 }
 
 jl-search>label:has(input:disabled) {
-  /* box-shadow: var(--_ring-disabled); */
   outline-color: var(--_disabled-color);
 }
 
+jl-search[open] > label {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  outline-width: var(--_border-width-focus);
+
+  box-shadow: var(--_drop-shadow);
+}
+
+
 jl-search .options {
-  /* box-shadow: var(--_ring-unselected); */
-  border: var(--_border-width-focus) solid var(--_shadow-color);
+  border: var(--_border-width-focus) solid var(--_outline-color);
   border-bottom-right-radius: var(--_border-radius);
   border-bottom-left-radius: var(--_border-radius);
-
+  background: var(--_field-bg);
   border-top: 0;
-  /* position: relative; */
+  margin: 0;
+  box-shadow: var(--_drop-shadow);
+
+  /* Using border instead of outline so that the popover can be drawn without
+  a top border. Adjust the width and position for aligning with the input that
+  uses outline. */
+  box-sizing: border-box;
   position: absolute;
 
-  z-index: 1;
-  margin: calc( -1 *  var(--_border-width-focus) );
-  background: var(--_field-bg);
-  /* background: yellow; */
-  visibility:hidden;
+  top: anchor(bottom);
+  left: calc( anchor(left) - var(--_border-width-focus) );
+  width: calc( anchor-size(width) + 2 * var(--_border-width-focus) );
 }
-jl-search[open] .options {
+
+/* jl-search[open] .options {
   visibility: visible;
-}
+} */
 
 jl-search:hover .options{
   border-color: var(--_hover-color);
@@ -110,12 +116,6 @@ jl-search:has(>label:focus-within) .options {
   border-color: var(--_focus-color);
 }
 
-
-jl-search[open] > label {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  outline-width: var(--_border-width-focus);
-}
 
 jl-search .options hr {
   border: thin solid var(--_hr-color);

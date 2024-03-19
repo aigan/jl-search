@@ -1,9 +1,16 @@
 const log = console.log.bind(console);
 
-const glyphs = {
-  spinner: "\uD83D\uDCC0",
-  warning: "\u26A0",
-}
+const polyfills = {};
+
+load_polyfills( polyfills );
+
+let element_id = 0;
+
+
+// const glyphs = {
+//   spinner: "\uD83D\uDCC0",
+//   warning: "\u26A0",
+// }
 
 const collator = new Intl.Collator("sv");
 
@@ -31,7 +38,7 @@ class El extends HTMLElement {
     super();
     const $el = this;
 
-    $el._$inp = $el.querySelector("input");
+    $el._id = ++element_id;
     $el._ev = undefined;
     $el._selected_index = null;
     $el._accepted = false;
@@ -51,18 +58,32 @@ class El extends HTMLElement {
     $el._rendered_req = 0;
     $el._rendered_query = "";
 
+    $el._$inp = $el.querySelector("input");
+    $el._$opts = $el.querySelector(".options");
+    $el._$label = $el.querySelector("label");
 
     // TODO: react on replaced input or input attributes. Remember our own
     // attributes
-    $el.adjust_attributes();
-    $el.add_listeners();
+    $el.setup_$el();
+    $el.setup_$inp();
+    $el.setup_$label();
+    $el.setup_$opts();
+
   }
 
-  // connectedCallback() {
-  //   const gel = this;
-  //   // super.connectedCallback();
-  //   log("hello");
-  // }
+  setup_$label() { 
+    const $el = this;
+    const $label = $el._$label;
+    if (!$label.id) $label.setAttribute("id", `${El.is}-anchor-${$el._id}`);
+    log("setup label", $label);
+  }
+
+  setup_$opts() { 
+    const $el = this;
+    const $opts = $el._$opts;
+    $opts.setAttribute("popover", "manual");
+    $opts.setAttribute("anchor", $el._$label.id);
+  }
 
   static input_defaults = {
     autocomplete: "off",
@@ -73,9 +94,8 @@ class El extends HTMLElement {
     // todo: add aria
   }
 
-  adjust_attributes() {
+  setup_$inp() {
     const $el = this;
-    log('adjust attributes');
     const $inp = $el._$inp;
 
     // Adding defaults
@@ -83,10 +103,7 @@ class El extends HTMLElement {
       if ($inp.hasAttribute(attr)) continue;
       $inp.setAttribute(attr, value);
     }
-  }
 
-  add_listeners() {
-    const $el = this;
     $el._ev_inp = {
       input: ev => $el.on_input(ev),
       // keydown: ev => $el.on_keydown(ev),
@@ -94,11 +111,13 @@ class El extends HTMLElement {
       // click: ev => $el.on_click(ev),
     }
 
-    const $inp = $el._$inp;
     for (const [type, listener] of Object.entries($el._ev_inp)) {
       $inp.addEventListener(type, listener);
     }
+  }
 
+  setup_$el() {
+    const $el = this;
     $el._ev = {
       focusout: ev => $el.on_focusout(ev),
     }
@@ -307,13 +326,16 @@ class El extends HTMLElement {
     if (!$el._options.length) return; // May want to show "no results"
 
 
-    $el.setAttribute("open","");
+    $el.setAttribute("open", "");
+    $el._$opts.showPopover();
+
     // log("show results", $el._options);
   }
 
   hide_options() { 
     const $el = this;
     $el.removeAttribute("open");
+    $el._$opts.hidePopover();
   }
 
   has_focus() {
@@ -387,6 +409,37 @@ class El extends HTMLElement {
 
 }
 customElements.define(El.is, El);
+
+
+
+
+
+function load_polyfills(polyfills){
+	polyfills.popover = load_polyfill_popover();
+	polyfills.anchor_positioning = load_polyfill_anchor_positioning();
+	polyfills.scroll_into_view = load_polyfill_scroll_into_view();
+}
+
+function load_polyfill_popover(){
+	if( HTMLElement.prototype.togglePopover ) return true;
+	return import("https://cdn.jsdelivr.net/npm/@oddbird/popover-polyfill@latest");
+}
+
+function load_polyfill_anchor_positioning(){
+	if( "anchorName" in document.documentElement.style ) return true;
+	return import("https://unpkg.com/@oddbird/css-anchor-positioning");
+}
+
+function load_polyfill_scroll_into_view(){
+	if( Element.prototype.scrollIntoViewIfNeeded ){
+		return $el => $el.scrollIntoViewIfNeeded();
+	} else {
+		const cnf = { scrollMode: 'if-needed', block: 'nearest' };
+		return import('https://esm.sh/scroll-into-view-if-needed')
+			.then( pkg => $el => pkg.default($el, cnf) )
+	}
+}
+
 
 
 /*
