@@ -1,7 +1,9 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+
 <link rel="stylesheet" href="./theme.css" />
+
 
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1"
       rel="stylesheet" />
@@ -27,6 +29,8 @@
 
   html:not(.symbols-loaded) .material-symbols-outlined {
     opacity: 0;
+    width: 1em;
+    /* keep expected width before ligature replacement */
   }
 
   label[for] {
@@ -34,11 +38,11 @@
     white-space: nowrap;
   }
 
-  label[for]:has(+jl-input input:disabled) {
+  label[for]:has(+jl-search input:disabled) {
     opacity: var(--opacity-disabled-content);
   }
 
-  jl-input {
+  jl-search {
     /* --_border-radius: 1.5em; */
     max-width: 25em;
 
@@ -56,9 +60,10 @@
     width: 1.5em;
     height: 1.5em;
     /* margin: .5em; */
-    margin: calc( var(--padding) - 0.25em) var(--padding);
+    margin: calc(var(--padding) - 0.25em) var(--padding);
   }
-  form>div{
+
+  form>div {
     display: flex;
     align-items: center;
   }
@@ -132,7 +137,8 @@
   }
 </script>
 <style>
-  #hue, #chroma {
+  #hue,
+  #chroma {
     position: fixed;
     width: 75vw;
     top: .5rem;
@@ -140,6 +146,7 @@
     right: 0;
     margin: 0 auto;
   }
+
   #chroma {
     top: 1.5rem;
 
@@ -148,14 +155,14 @@
 
 
 <form>
-  <label for="delay">Slow down</label> 
+  <label for="delay">Slow down</label>
   <div>
     <input id="delay" type="checkbox">
     <span>Simulate slower server responses</span>
   </div>
 
   <label for="field1">Search</label>
-  <jl-input>
+  <jl-search>
     <label>
       <span class="material-symbols-outlined">
         search
@@ -164,24 +171,40 @@
       <span class="material-symbols-outlined state-normal">
       </span>
     </label>
-    <ul></ul>
-    <div class="feedback">
-      Do the stuff
+    <div class="options">
+      <hr>
+      <ul></ul>
+      <hr>
+      <div class="feedback">
+        Do the stuff
+      </div>
     </div>
-  </jl-input>
+  </jl-search>
+  <label for="email">E-mail</label>
+  <input id="email" style="z-index:2">
 </form>
 
 <script>
-  document.querySelector("jl-input").search = search;
+  const log = console.log.bind(console);
+
+  const $jl_inp = document.querySelector("jl-search");
+  $jl_inp.search = search;
   const $delay = document.querySelector("#delay");
   const url_search = "https://wiki.para.se:9071/s/";
-  const log = console.log.bind(console);
-  async function search({ text, req_id }) {
-    const text_out = encodeURIComponent(text);
-    let query = "?"+($delay.checked ? "delay" : "");
-    const res = await fetch(url_search + text_out + query );
+  async function search({ query, req_id }) {
+    const query_out = encodeURIComponent(query.replaceAll(" ", "_"));
+    let opts = "?" + ($delay.checked ? "delay" : "");
+    const res = await fetch(url_search + query_out + opts);
     const json = await res.json();
-
     return json;
   }
+
+  $jl_inp.render_item_html = render_item_html;
+  function render_item_html(text) {
+    return text.replaceAll("_", " ");
+  }
+
+  $delay.oninput = () => localStorage.use_delay = $delay.checked;
+  $delay.checked = localStorage.use_delay === "true";
+
 </script>

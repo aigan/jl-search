@@ -1,4 +1,4 @@
-jl-input {
+jl-search {
   display: inline-block;
 
   --_padding: var(--padding, .5em);
@@ -6,25 +6,28 @@ jl-input {
   --_hover-color: var(--c-on-surface );
   --_focus-color: var(--c-primary);
   --_disabled-color: var(--c-outline-a33);
-	--_field-bg:  var(---c-background);
+	--_field-bg:  var(--c-background);
   --_disabled_content_opacity: var(--opacity-disabled-content, .38);
   --_border-width: .15rem;
   --_border-width-focus: .25rem;
   --_border-radius: .35rem;
-  --_ring-disabled: 0 0 0 var(--_border-width) var(--_disabled-color);
+  --_hr-color: var(--c-surface-dim);
+
+  /* --_ring-disabled: 0 0 0 var(--_border-width) var(--_disabled-color);
   --_ring-unselected: 0 0 0 var(--_border-width) var(--_shadow-color);
   --_ring-focus: 0 0 0 var(--_border-width-focus) var(--_focus-color);
-  --_ring-hover: 0 0 0 var(--_border-width) var(--_hover-color);
+  --_ring-hover: 0 0 0 var(--_border-width) var(--_hover-color); */
 
 
   font-family: var(--font-family, sans-serif);
 }
 
-jl-input:hover>label {
-  box-shadow: var(--_ring-hover);
+jl-search:hover>label {
+  /* box-shadow: var(--_ring-hover); */
+  outline-color: var(--_hover-color);
 }
 
-jl-input>label>.material-symbols-outlined {
+jl-search>label>.material-symbols-outlined {
   font-size: 1.5em;
   margin: -.25em 0;
   /* Do not contribute to parent height */
@@ -32,7 +35,7 @@ jl-input>label>.material-symbols-outlined {
   /* selecting ligature icons suck */
 }
 
-input {
+jl-search input {
   padding: 0;
   margin: 0;
   border: none;
@@ -44,14 +47,14 @@ input {
   width: 100%;
 }
 
-input:focus,
-input:focus-within {
+jl-search input:focus,
+jl-search input:focus-within {
   outline: none;
   border: none;
 }
 
-jl-input>label {
-  box-shadow: var(--_ring-unselected);
+jl-search>label {
+  /* box-shadow: var(--_ring-unselected); */
   display: flex;
   align-items: center;
   gap: var(--_padding);
@@ -60,19 +63,63 @@ jl-input>label {
   padding: var(--_padding);
   background: var(--_field-bg);
   transition: box-shadow .2s;
+
+  outline: var(--_border-width) solid var(--_shadow-color);
+  /* margin: calc( -1 * var(--_border-width) ); */
 }
 
-jl-input>label:focus-within {
-  box-shadow: var(--_ring-focus);
-  /* background: color-mix(in lch, currentcolor, black); */
+jl-search>label:focus-within {
+  /* box-shadow: var(--_ring-focus); */
+  outline: var(--_border-width-focus) solid var(--_focus-color);
+  /* margin: calc( -1 * var(--_border-width-focus) ); */
 }
 
-jl-input:has(input:disabled) {
+jl-search:has(input:disabled) {
   opacity: var(--_disabled_content_opacity);
 }
 
-jl-input>label:has(input:disabled) {
-  box-shadow: var(--_ring-disabled);
+jl-search>label:has(input:disabled) {
+  /* box-shadow: var(--_ring-disabled); */
+  outline-color: var(--_disabled-color);
+}
+
+jl-search .options {
+  /* box-shadow: var(--_ring-unselected); */
+  border: var(--_border-width-focus) solid var(--_shadow-color);
+  border-bottom-right-radius: var(--_border-radius);
+  border-bottom-left-radius: var(--_border-radius);
+
+  border-top: 0;
+  /* position: relative; */
+  position: absolute;
+
+  z-index: 1;
+  margin: calc( -1 *  var(--_border-width-focus) );
+  background: var(--_field-bg);
+  /* background: yellow; */
+  visibility:hidden;
+}
+jl-search[open] .options {
+  visibility: visible;
+}
+
+jl-search:hover .options{
+  border-color: var(--_hover-color);
+}
+jl-search:has(>label:focus-within) .options {
+  border-color: var(--_focus-color);
+}
+
+
+jl-search[open] > label {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  outline-width: var(--_border-width-focus);
+}
+
+jl-search .options hr {
+  border: thin solid var(--_hr-color);
+  margin: 0 var(--_padding);
 }
 
 .state-loading {
@@ -85,8 +132,10 @@ jl-input>label:has(input:disabled) {
 
 .state-normal::before { content: "dictionary" }
 
-jl-input>ul {
+jl-search ul {
+  list-style: none;
   margin: 0;
+  padding: var(--_padding);
 }
 
 .feedback {

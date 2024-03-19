@@ -1,0 +1,373 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+<link rel="stylesheet" href="../plain/theme.css" />
+
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1"
+			rel="stylesheet" />
+<link rel="stylesheet" href="../../jl-search.css" />
+
+
+
+<script type="module">
+	import "../../jl-search.mjs";
+</script>
+
+<style>
+	:root {
+		--padding: .75em;
+		/* --brand: lch(49.33% 75.4 144); */
+	}
+
+	label[for] {
+		padding-top: var(--padding);
+		white-space: nowrap;
+	}
+
+	jl-search {
+		--_border-radius: 1.5em;
+		max-width: 25em;
+	}
+
+	form {
+		display: flex;
+		gap: var(--padding);
+	}
+
+	.card {
+		padding: 1rem;
+		outline: .15rem solid grey;
+	}
+
+	section {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	section>div {
+		display: flex;
+	}
+
+	.square {
+		padding: 7vw;
+	}
+
+	.cp10 {
+		background: var(--c-p10)
+	}
+
+	.cp20 {
+		background: var(--c-p20)
+	}
+
+	.cp30 {
+		background: var(--c-p30)
+	}
+
+	.cp40 {
+		background: var(--c-p40)
+	}
+
+	.cp80 {
+		background: var(--c-p80)
+	}
+
+	.cp90 {
+		background: var(--c-p90)
+	}
+
+	.cs10 {
+		background: var(--c-s10)
+	}
+
+	.cs20 {
+		background: var(--c-s20)
+	}
+
+	.cs30 {
+		background: var(--c-s30)
+	}
+
+	.cs40 {
+		background: var(--c-s40)
+	}
+
+	.cs80 {
+		background: var(--c-s80)
+	}
+
+	.cs90 {
+		background: var(--c-s90)
+	}
+
+	.cv30 {
+		background: var(--c-v30)
+	}
+
+	.cv50 {
+		background: var(--c-v50)
+	}
+
+	.cv60 {
+		background: var(--c-v60)
+	}
+
+	.cv70 {
+		background: var(--c-v70)
+	}
+
+	.cv80 {
+		background: var(--c-v80)
+	}
+
+	.cv90 {
+		background: var(--c-v90)
+	}
+
+	.cn10 {
+		background: var(--c-n10)
+	}
+
+	.cn17 {
+		background: var(--c-n17)
+	}
+
+	.cn24 {
+		background: var(--c-n24)
+	}
+
+	.cn87 {
+		background: var(--c-n87)
+	}
+
+	.cn92 {
+		background: var(--c-n92)
+	}
+
+	.cn98 {
+		background: var(--c-n98)
+	}
+
+	.ct10 {
+		background: var(--c-t10)
+	}
+
+	.ct20 {
+		background: var(--c-t20)
+	}
+
+	.ct30 {
+		background: var(--c-t30)
+	}
+
+	.ct40 {
+		background: var(--c-t40)
+	}
+
+	.ct80 {
+		background: var(--c-t80)
+	}
+
+	.ct90 {
+		background: var(--c-t90)
+	}
+
+	.ce10 {
+		background: var(--c-e10)
+	}
+
+	.ce20 {
+		background: var(--c-e20)
+	}
+
+	.ce30 {
+		background: var(--c-e30)
+	}
+
+	.ce40 {
+		background: var(--c-e40)
+	}
+
+	.ce80 {
+		background: var(--c-e80)
+	}
+
+	.ce90 {
+		background: var(--c-e90)
+	}
+</style>
+
+
+<!-- Theme dark / light switch-->
+<nav class="theme-switch material-symbols-outlined"></nav>
+<script>
+  const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  const sys_dark = mql.matches;
+  if (localStorage.theme === 'dark' || mql.matches)
+    document.documentElement.dataset.theme = "dark";
+  function remember_dark() {
+    document.documentElement.dataset.theme = "dark";
+    localStorage.theme = 'dark';
+  }
+  function forget_dark() {
+    delete document.documentElement.dataset.theme;
+    localStorage.theme = '';
+  }
+
+  mql.addEventListener('change',
+    ev => {
+      if (mql.matches) remember_dark()
+      else forget_dark()
+    }
+  )
+  document.querySelector(".theme-switch").onclick = () => {
+    if (localStorage.theme === 'dark') forget_dark()
+    else remember_dark()
+  }
+
+  //Hide symbols until the font has loaded
+  document.fonts.load("1em Material Symbols Outlined").then(() => {
+    document.documentElement.classList.add('symbols-loaded');
+  })
+</script>
+<style>
+  nav.theme-switch::before {
+    content: "dark_mode";
+    position: fixed;
+    top: .5rem;
+    right: .5rem;
+  }
+
+  [data-theme="dark"] nav.theme-switch::before {
+    content: "light_mode";
+  }
+</style>
+
+
+
+<section>
+	<div>
+		<div class="square cp90"></div>
+		<div class="square cp80"></div>
+		<div class="square cp40"></div>
+		<div class="square cp30"></div>
+		<div class="square cp20"></div>
+		<div class="square cp10"></div>
+	</div>
+	<div>
+		<div class="square cs90"></div>
+		<div class="square cs80"></div>
+		<div class="square cs40"></div>
+		<div class="square cs30"></div>
+		<div class="square cs20"></div>
+		<div class="square cs10"></div>
+	</div>
+	<div>
+		<div class="square cv90"></div>
+		<div class="square cv80"></div>
+		<div class="square cv70"></div>
+		<div class="square cv60"></div>
+		<div class="square cv50"></div>
+		<div class="square cv30"></div>
+	</div>
+	<div>
+		<div class="square cn98"></div>
+		<div class="square cn92"></div>
+		<div class="square cn87"></div>
+		<div class="square cn24"></div>
+		<div class="square cn17"></div>
+		<div class="square cn10"></div>
+	</div>
+	<div>
+		<div class="square ct90"></div>
+		<div class="square ct80"></div>
+		<div class="square ct40"></div>
+		<div class="square ct30"></div>
+		<div class="square ct20"></div>
+		<div class="square ct10"></div>
+	</div>
+	<div>
+		<div class="square ce90"></div>
+		<div class="square ce80"></div>
+		<div class="square ce40"></div>
+		<div class="square ce30"></div>
+		<div class="square ce20"></div>
+		<div class="square ce10"></div>
+	</div>
+</section>
+
+
+
+<p class="highlight">Some notes about this</p>
+
+
+<div class="card">
+	<h2>More stuff</h2>
+	<p>General info</p>
+	<p class="highlight">More important stuff</p>
+
+	<form class="card dark">
+		<label for="field1">E-mail</label>
+		<jl-search>
+			<label>
+				<span class="material-symbols-outlined">
+					mail
+				</span>
+				<input id="field1" />
+				<span class="material-symbols-outlined state-loading">
+				</span>
+			</label>
+			<ul></ul>
+			<div class="feedback">
+				Do the stuff
+			</div>
+		</jl-search>
+	</form>
+</div>
+
+
+
+
+<!-- Theme color slider -->
+<input id="hue" type="range" min="1" max="360">
+<input id="chroma" type="range" min="0" max="0.47" step="0.01">
+<script>
+	const $hue = document.querySelector("#hue");
+	const $chr = document.querySelector("#chroma");
+	$hue.value = localStorage.primary_hue;
+	$chr.value = localStorage.primary_chroma;
+
+	$hue.oninput = set_color;
+	$chr.oninput = set_color;
+	const style = document.documentElement.style;
+	set_color();
+	function set_color() {
+		style.setProperty("--primary-hue", $hue.value);
+		localStorage.primary_hue = $hue.value;
+		style.setProperty("--primary-chroma", $chr.value);
+		localStorage.primary_chroma = $chr.value;
+	}
+</script>
+<style>
+	#hue,
+	#chroma {
+		position: fixed;
+		width: 75vw;
+		top: .5rem;
+		left: 0;
+		right: 0;
+		margin: 0 auto;
+	}
+
+	#chroma {
+		top: 1.5rem;
+	}
+
+	@media (max-width: 600px) {
+		#chroma {
+			top: 2rem;
+		}
+	}
+</style>

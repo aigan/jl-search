@@ -8,7 +8,7 @@ const glyphs = {
 const collator = new Intl.Collator("sv");
 
 class El extends HTMLElement {
-  static is = "jl-input"
+  static is = "jl-search"
 
   static states = {
     loading: ['spinner', "Loading value"],
@@ -37,12 +37,19 @@ class El extends HTMLElement {
     $el._accepted = false;
     $el._error = null;
     $el._req_id = 0;
+    $el._memory = new Map();
+
     $el._options_req = 0;
+    $el._options_query = "";
     $el._options = [];
     $el._found_count = 0;
     $el._found_speed = undefined;
+
     $el._prepared_req = 0;
-    $el._memory = new Map();
+    $el._prepared_query = "";
+
+    $el._rendered_req = 0;
+    $el._rendered_query = "";
 
 
     // TODO: react on replaced input or input attributes. Remember our own
@@ -51,11 +58,11 @@ class El extends HTMLElement {
     $el.add_listeners();
   }
 
-  connectedCallback() {
-    const gel = this;
-    // super.connectedCallback();
-    log("hello");
-  }
+  // connectedCallback() {
+  //   const gel = this;
+  //   // super.connectedCallback();
+  //   log("hello");
+  // }
 
   static input_defaults = {
     autocomplete: "off",
@@ -80,7 +87,7 @@ class El extends HTMLElement {
 
   add_listeners() {
     const $el = this;
-    $el._ev = {
+    $el._ev_inp = {
       input: ev => $el.on_input(ev),
       // keydown: ev => $el.on_keydown(ev),
       focus: ev => $el.on_focus(ev),
@@ -88,9 +95,23 @@ class El extends HTMLElement {
     }
 
     const $inp = $el._$inp;
-    for (const [type, listener] of Object.entries($el._ev)) {
+    for (const [type, listener] of Object.entries($el._ev_inp)) {
       $inp.addEventListener(type, listener);
     }
+
+    $el._ev = {
+      focusout: ev => $el.on_focusout(ev),
+    }
+
+    for (const [type, listener] of Object.entries($el._ev)) {
+      $el.addEventListener(type, listener);
+    }
+  }
+
+  on_focusout(ev) {
+    const $el = this;
+    if ($el.has_focus()) return;
+    $el.hide_options();
   }
 
   on_input(ev) {
@@ -107,36 +128,37 @@ class El extends HTMLElement {
     const $el = this;
     const $inp = $el._$inp;
     // $el.handle_search_input($inp.value);
+    $el.show_options();
   }
 
-  handle_search_input(text_in) {
+  handle_search_input(query_in) {
     const $el = this;
 
     $el._selected_index = null;
     $el._accepted = false;
     $el._error = null;
 
-    const text = text_in.trim().toLowerCase();
-    log("search for", text, text.length);
+    const query = query_in.trim().toLowerCase();
+    // log("search for", query, query.length);
 
-    if (!text.length) return $el.set_options_from_history();
+    if (!query.length) return $el.set_options_from_history();
 
     const req_id = ++$el._req_id;
-    const promise = $el.get_result_promise(text, req_id);
+    const promise = $el.get_result_promise(query, req_id);
     promise.then(res => $el.on_result(res));
   }
 
-  get_result_promise(text, req_id) {
+  get_result_promise(query, req_id) {
     const $el = this;
     const time_start = Date.now();
 
-    if ($el._memory.has(text)) return $el._memory.get(text).then(res => ({
+    if ($el._memory.has(query)) return $el._memory.get(query).then(res => ({
       ...res,
       this_req: req_id,
       from_memory: true,
     }))
 
-    const record_p = $el.search({ text, req_id }).then(res => ({
+    const record_p = $el.search({ query, req_id }).then(res => ({
       first_req: req_id,
       this_req: req_id,
       req_sent: time_start,
@@ -150,11 +172,11 @@ class El extends HTMLElement {
       }
     })
 
-    $el._memory.set(text, record_p);
+    $el._memory.set(query, record_p);
     return record_p;
   }
 
-  on_result(res) {
+  async on_result(res) {
     const $el = this;
 
     // handle slow responses
@@ -163,41 +185,61 @@ class El extends HTMLElement {
     // Show result in order even if more is on the way
 
     if (res.error) console.error(res.error);
-    else if (res.from_memory) log("got", res.count, "results from memory");
-    else log("got", res.count, "results in", res.speed / 1000, "seconds");
+    else if (res.from_memory) log(res.query + ":", "got", res.count, "results from memory");
+    else log(res.query + ":", "got", res.count, "results in", res.speed / 1000, "seconds");
 
-    if (res.error) { 
+    if (res.error) {
       log("handle error...");
     }
 
 
     $el._options = res.found ?? [];
     $el._options_req = res.this_req;
+    $el._options_query = res.query;
     $el._found_count = res.count;
     $el._found_speed = res.speed;
 
-    $el.prepare_options(res).then(() => $el.render_options({
+    // log("Transitions", $el._rendered_query, "=>", res.query, res );
+    if ($el._rendered_query === res.query) return;
+
+    await $el.prepare_options(res);
+
+    $el._prepared_req = res.this_req;
+    $el._prepared_query = res.query;
+
+    $el.render_options({
       options_req: $el._options_req,
       current_req: $el._req_id,
       prepared_req: res.this_req,
-      prepared_query: res.text,
+      prepared_query: res.query,
       current_query: $el._$inp.value,
       found: res.found ?? [],
       count: res.count,
       speed: res.speed,
       from_memory: res.from_memory,
       has_focus: $el.has_focus(),
-    })).then(() => {
-      $el._prepared_req = res.this_req;
-      $el.show_options()
-    })
+    });
+
+    $el._rendered_req = res.this_req;
+    $el._rendered_query = res.query;
+
+    $el.show_options()
   }
 
   set_options_from_history() {
     const $el = this;
     log("Set opitons from history", $el.has_focus());
-    $el._options = [];
-    $el.show_options();
+    const req_id = ++$el._req_id;
+    $el.on_result({
+      count: 0,
+      first_req: 0,
+      found: [],
+      from_memory: true,
+      query: "",
+      speed: 0,
+      this_req: req_id,
+    });
+
   }
 
   // override for async process of search result
@@ -209,52 +251,54 @@ class El extends HTMLElement {
   render_options({ found, error }) {
     const max = Math.min(found.length, 10);
     const $el = this;
-    log("render options from", found);
+    // log("render options from", found);
 
     const $ul = $el.querySelector("ul");
     const children = $ul.children;
     let i = 0;
     for (const $child of [...children]) {
       const val = $child.dataset.text;
-      outer: while (true) {
-        if (i >= max) break;
-
+      while (i < max) {
         const order = collator.compare(val, found[i]);
-        log("compare", val, "with", found[i], order);
+        // log("compare", val, "with", i, found[i], order);
 
-        switch (order) {
-          case -1:
-            log("  remove");
-            $child.remove();
-            break outer;
-          case +1:
-            log("  insert", found[i], "before", val);
-            $ul.insertBefore($el.render_item(found[i]), $child);
-            i++;
-            continue outer;
-          default:
-            log("  keep");
-            i++;
+        if (order === -1) {
+          // log("  remove");
+          $child.remove();
+          break;
+        } else if (order === +1) {
+          // log("  insert", found[i], "before", val);
+          $ul.insertBefore($el.render_item(found[i]), $child);
+        } else {
+          i++;
+          break;
         }
-      }
 
-      if (i >= max) {
-        $child.remove();
-        continue;
+        i++;
       }
     }
 
     for (let j = i; j < max; j++) {
-      log("append", found[j]);
+      // log("append", found[j]);
       $ul.append($el.render_item(found[j]));
     }
+
+    while ($ul.children.length > max) { 
+      $ul.children[max].remove();
+    }
+
   }
 
   render_item(text) {
+    const $el = this;
     const $li = document.createElement("li");
-    $li.innerHTML = text;
+    $li.innerHTML = $el.render_item_html(text);
     $li.dataset.text = text;
     return $li;
+  }
+
+  render_item_html(text) {
+    return text;
   }
 
   show_options() {
@@ -263,7 +307,13 @@ class El extends HTMLElement {
     if (!$el._options.length) return; // May want to show "no results"
 
 
+    $el.setAttribute("open","");
     // log("show results", $el._options);
+  }
+
+  hide_options() { 
+    const $el = this;
+    $el.removeAttribute("open");
   }
 
   has_focus() {
@@ -272,11 +322,6 @@ class El extends HTMLElement {
 
   // on_click(ev) { log("on_click", ev) }
 
-  show_suggestions() {
-    log("show suggestions");
-    const $el = this;
-    const $inp = $el._$inp;
-  }
 
   h_tip() {
     const gel = this;
@@ -352,6 +397,7 @@ https://tailwindui.com/components/application-ui/forms/input-groups
 https://material-components.github.io/material-components-web-catalog/#/component/text-field
 https://fonts.google.com/icons
 https://fonts.google.com/noto/specimen/Noto+Emoji?query=noto+emoji
+https://material-web.dev/
 
 https://oklch.com/#73.40931506848489,0.3563,81.72,100
 
