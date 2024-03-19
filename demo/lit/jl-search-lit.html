@@ -1,12 +1,28 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1" /> -->
+<!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans" />      -->
+
 
 <script type="module">
   import "./preload.mjs";
   import "../../jl-search.mjs";
 </script>
-  
 
-<h1>Test</h1>
-<jl-search>load</jl-search>
+<style>
+  body {
+    background: #EEF;
+    font-size: 2rem;
+  }
+</style>
+
+<jl-search lock
+          prefix="@"
+          label="E-mail"
+          default_value="glop">load</jl-search>
+
+<jl-search
+          prefix="@"
+          label="E-mail">load</jl-search>
+
