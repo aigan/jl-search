@@ -1,0 +1,221 @@
+/*
+Based on Material 3 design
+https://m3.material.io/styles/color/system/how-the-system-works
+
+https://material-web.dev/theming/color/
+
+The hue will shift for high chroma low lightness
+https://issues.chromium.org/issues/325598621
+
+
+*/
+
+@property --alt-floor {
+	syntax: '<integer>';
+	initial-value: 0;
+	inherits: false;
+}
+
+:where(html) {
+	/* --primary-hue: 82; */
+	/* --primary-hue: 139; */
+	/* --primary-hue: 65.7; */
+
+	--primary-chroma: 0.4;
+	/* --primary-chroma: 0.37; */
+
+	--error-hue: 27.7;
+	--alt-shift: 60;
+
+	/* emultate mod(), based on
+https://css-tricks.com/using-absolute-value-sign-rounding-and-modulo-in-css-today/
+ */
+	--alt-hue-shifted: calc(var(--primary-hue) + var(--alt-shift));
+	--alt-floor: calc(var(--alt-hue-shifted) / 360 - .5);
+	--tertiary-hue: calc(var(--alt-hue-shifted) - (360*var(--alt-floor)));
+}
+
+@supports(line-height: mod(1, 2)) {
+	:where(html) {
+		--tertiary-hue: mod(var(--alt-hue-shifted), 360);
+	}
+}
+
+:where(html) {
+
+	--secondary-chroma: calc(var(--primary-chroma)/3);
+	--variant-chroma: min(var(--primary-chroma)/6, 0.08);
+	--neutral-chroma: min(var(--primary-chroma)/12, 0.04);
+	--tertiary-chroma: calc(var(--primary-chroma)/2);
+
+	--c-p10: oklch(10% var(--primary-chroma) var(--primary-hue));
+	--c-p20: oklch(20% var(--primary-chroma) var(--primary-hue));
+	--c-p30: oklch(30% var(--primary-chroma) var(--primary-hue));
+	--c-p40: oklch(40% var(--primary-chroma) var(--primary-hue));
+	--c-p80: oklch(80% var(--primary-chroma) var(--primary-hue));
+	--c-p90: oklch(90% var(--primary-chroma) var(--primary-hue));
+
+	--c-s10: oklch(10% var(--secondary-chroma) var(--primary-hue));
+	--c-s20: oklch(20% var(--secondary-chroma) var(--primary-hue));
+	--c-s30: oklch(30% var(--secondary-chroma) var(--primary-hue));
+	--c-s40: oklch(40% var(--secondary-chroma) var(--primary-hue));
+	--c-s80: oklch(80% var(--secondary-chroma) var(--primary-hue));
+	--c-s90: oklch(90% var(--secondary-chroma) var(--primary-hue));
+
+	--c-t10: oklch(10% var(--tertiary-chroma) var(--tertiary-hue));
+	--c-t20: oklch(20% var(--tertiary-chroma) var(--tertiary-hue));
+	--c-t30: oklch(30% var(--tertiary-chroma) var(--tertiary-hue));
+	--c-t40: oklch(40% var(--tertiary-chroma) var(--tertiary-hue));
+	--c-t80: oklch(80% var(--tertiary-chroma) var(--tertiary-hue));
+	--c-t90: oklch(90% var(--tertiary-chroma) var(--tertiary-hue));
+
+	--c-n4: oklch(4% var(--neutral-chroma) var(--primary-hue));
+	--c-n6: oklch(6% var(--neutral-chroma) var(--primary-hue));
+	--c-n10: oklch(10% var(--neutral-chroma) var(--primary-hue));
+	--c-n12: oklch(12% var(--neutral-chroma) var(--primary-hue));
+	--c-n17: oklch(17% var(--neutral-chroma) var(--primary-hue));
+	--c-n20: oklch(20% var(--neutral-chroma) var(--primary-hue));
+	--c-n24: oklch(24% var(--neutral-chroma) var(--primary-hue));
+	--c-n87: oklch(87% var(--neutral-chroma) var(--primary-hue));
+	--c-n90: oklch(90% var(--neutral-chroma) var(--primary-hue));
+	--c-n92: oklch(92% var(--neutral-chroma) var(--primary-hue));
+	--c-n94: oklch(94% var(--neutral-chroma) var(--primary-hue));
+	--c-n95: oklch(95% var(--neutral-chroma) var(--primary-hue));
+	--c-n96: oklch(96% var(--neutral-chroma) var(--primary-hue));
+	--c-n98: oklch(98% var(--neutral-chroma) var(--primary-hue));
+
+	--c-v30: oklch(30% var(--variant-chroma) var(--primary-hue));
+	--c-v50: oklch(50% var(--variant-chroma) var(--primary-hue));
+	--c-v50a33: oklch(50% var(--variant-chroma) var(--primary-hue) / .33);
+	--c-v60: oklch(60% var(--variant-chroma) var(--primary-hue));
+	--c-v60a33: oklch(60% var(--variant-chroma) var(--primary-hue) / .33);
+	--c-v70: oklch(70% var(--variant-chroma) var(--primary-hue));
+	--c-v80: oklch(80% var(--variant-chroma) var(--primary-hue));
+	--c-v90: oklch(90% var(--variant-chroma) var(--primary-hue));
+
+	--c-e10: oklch(10% var(--primary-chroma) var(--error-hue));
+	--c-e20: oklch(20% var(--primary-chroma) var(--error-hue));
+	--c-e30: oklch(30% var(--primary-chroma) var(--error-hue));
+	--c-e40: oklch(40% var(--primary-chroma) var(--error-hue));
+	--c-e80: oklch(80% var(--primary-chroma) var(--error-hue));
+	--c-e90: oklch(90% var(--primary-chroma) var(--error-hue));
+
+	--c-scrim: black;
+	--c-shadow: black;
+}
+
+
+:where(html) {
+	color-scheme: light;
+
+	--c-primary: var(--c-p40);
+	--c-on-primary: white;
+	--c-primary-container: var(--c-p90);
+	--c-on-primary-container: var(--c-p10);
+	--c-inverse-primary: var(--c-p80);
+
+	--c-secondary: var(--c-s40);
+	--c-on-secondary: white;
+	--c-secondary-container: var(--c-s90);
+	--c-on-secondary-container: var(--c-s10);
+
+	--c-tertiary: var(--c-t40);
+	--c-on-tertiary: white;
+	--c-tertiary-container: var(--c-t90);
+	--c-on-tertiary-container: var(--c-t10);
+
+	--c-surface-dim: var(--c-n87);
+	--c-surface: var(--c-n98);
+	--c-surface-bright: var(--c-n98);
+	--c-surface-container-lowest: white;
+	--c-surface-container-low: var(--c-n96);
+	--c-surface-container: var(--c-n94);
+	--c-surface-container-high: var(--c-n92);
+	--c-surface-container-highest: var(--c-n90);
+	--c-on-surface: var(--c-n10);
+	--c-inverse-surface: var(--c-n20);
+	--c-inverse-on-surface: var(--c-n95);
+
+	--c-on-surface-variant: var(--c-v30);
+	--c-outline: var(--c-v50);
+	--c-outline-a33: var(--c-v50a33);
+	--c-outline-variant: var(--c-v80);
+
+	--c-error: var(--c-e40);
+	--c-on-error: white;
+	--c-error-container: var(--c-e90);
+	--c-on-error-container: var(--c-e10);
+
+}
+
+:where([data-theme="dark"]) {
+	color-scheme: dark;
+
+	--c-primary: var(--c-p80);
+	--c-on-primary: var(--c-p20);
+	--c-primary-container: var(--c-p30);
+	--c-on-primary-container: var(--c-p90);
+	--c-inverse-primary: var(--c-p40);
+
+	--c-secondary: var(--c-s80);
+	--c-on-secondary: var(--c-s20);
+	--c-secondary-container: var(--c-s30);
+	--c-on-secondary-container: var(--c-s90);
+
+	--c-tertiary: var(--c-t80);
+	--c-on-tertiary: var(--c-20);
+	--c-tertiary-container: var(--c-t30);
+	--c-on-tertiary-container: var(--c-t90);
+
+	--c-surface-dim: var(--c-n6);
+	--c-surface: var(--c-n6);
+	--c-surface-bright: var(--c-n24);
+	--c-surface-container-lowest: var(--c-n4);
+	--c-surface-container-low: var(--c-n10);
+	--c-surface-container: var(--c-n12);
+	--c-surface-container-high: var(--c-n17);
+	--c-surface-container-highest: var(--c-n24);
+	--c-on-surface: var(--c-n90);
+	--c-inverse-surface: var(--c-n90);
+	--c-inverse-on-surface: var(--c-n20);
+
+	--c-on-surface-variant: var(--c-v90);
+	--c-outline: var(--c-v60);
+	--c-outline-a33: var(--c-v60a33);
+	--c-outline-variant: var(--c-v30);
+
+	--c-error: var(--c-e80);
+	--c-on-error: var(--c-e20);
+	--c-error-container: var(--c-e30);
+	--c-on-error-container: var(--c-e90);
+}
+
+:where(html) {
+
+	--c-background: var(--c-surface-bright);
+	--c-on-background: var(--c-on-surface);
+
+
+
+	scrollbar-color: var(--c-outline-a33) transparent;
+	accent-color: var(--c-primary, var(--link));
+	caret-color: var(--c-primary, var(--link));
+
+	color: var(--c-on-background);
+	background: var(--c-background);
+	transition: background-color 1s;
+
+	font-size: 1rem;
+	font-family: sans-serif;
+}
+
+:where(body){
+	margin: 3rem;
+}
+
+@media (max-width: 600px) {
+	:where(body) {
+		margin: .3rem;
+		margin-top: 3rem;
+	}
+}

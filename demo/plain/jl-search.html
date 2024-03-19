@@ -1,0 +1,187 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" href="./theme.css" />
+
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1"
+      rel="stylesheet" />
+<link rel="stylesheet" href="../../jl-search.css" />
+
+
+
+<script type="module">
+  import "../../jl-search.mjs";
+</script>
+
+<style>
+  :root {
+    --padding: .75em;
+    --opacity-disabled-content: .38;
+  }
+
+
+  /* Show symbols after font loaded */
+  .material-symbols-outlined {
+    transition: opacity .5s;
+  }
+
+  html:not(.symbols-loaded) .material-symbols-outlined {
+    opacity: 0;
+  }
+
+  label[for] {
+    padding-top: var(--padding);
+    white-space: nowrap;
+  }
+
+  label[for]:has(+jl-input input:disabled) {
+    opacity: var(--opacity-disabled-content);
+  }
+
+  jl-input {
+    /* --_border-radius: 1.5em; */
+    max-width: 25em;
+
+  }
+
+  form {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--padding);
+    max-width: 80vw;
+  }
+
+  /* form > input {width: calc( 1em + var(--padding)*2); text-align: left } */
+  form>div>input[type=checkbox] {
+    width: 1.5em;
+    height: 1.5em;
+    /* margin: .5em; */
+    margin: calc( var(--padding) - 0.25em) var(--padding);
+  }
+  form>div{
+    display: flex;
+    align-items: center;
+  }
+</style>
+
+
+<!-- Theme dark / light switch-->
+<nav class="theme-switch material-symbols-outlined"></nav>
+<script>
+  const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  const sys_dark = mql.matches;
+  if (localStorage.theme === 'dark' || mql.matches)
+    document.documentElement.dataset.theme = "dark";
+  function remember_dark() {
+    document.documentElement.dataset.theme = "dark";
+    localStorage.theme = 'dark';
+  }
+  function forget_dark() {
+    delete document.documentElement.dataset.theme;
+    localStorage.theme = '';
+  }
+
+  mql.addEventListener('change',
+    ev => {
+      if (mql.matches) remember_dark()
+      else forget_dark()
+    }
+  )
+  document.querySelector(".theme-switch").onclick = () => {
+    if (localStorage.theme === 'dark') forget_dark()
+    else remember_dark()
+  }
+
+  //Hide symbols until the font has loaded
+  document.fonts.load("1em Material Symbols Outlined").then(() => {
+    document.documentElement.classList.add('symbols-loaded');
+  })
+</script>
+<style>
+  nav.theme-switch::before {
+    content: "dark_mode";
+    position: fixed;
+    top: .5rem;
+    right: .5rem;
+  }
+
+  [data-theme="dark"] nav.theme-switch::before {
+    content: "light_mode";
+  }
+</style>
+
+
+<!-- Theme color slider -->
+<input id="hue" type="range" min="1" max="360">
+<input id="chroma" type="range" min="0" max="0.47" step="0.01">
+<script>
+  const $hue = document.querySelector("#hue");
+  const $chr = document.querySelector("#chroma");
+  $hue.value = localStorage.primary_hue;
+  $chr.value = localStorage.primary_chroma;
+
+  $hue.oninput = set_color;
+  $chr.oninput = set_color;
+  const style = document.documentElement.style;
+  set_color();
+  function set_color() {
+    style.setProperty("--primary-hue", $hue.value);
+    localStorage.primary_hue = $hue.value;
+    style.setProperty("--primary-chroma", $chr.value);
+    localStorage.primary_chroma = $chr.value;
+  }
+</script>
+<style>
+  #hue, #chroma {
+    position: fixed;
+    width: 75vw;
+    top: .5rem;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+  }
+  #chroma {
+    top: 1.5rem;
+
+  }
+</style>
+
+
+<form>
+  <label for="delay">Slow down</label> 
+  <div>
+    <input id="delay" type="checkbox">
+    <span>Simulate slower server responses</span>
+  </div>
+
+  <label for="field1">Search</label>
+  <jl-input>
+    <label>
+      <span class="material-symbols-outlined">
+        search
+      </span>
+      <input autofocus id="field1" />
+      <span class="material-symbols-outlined state-normal">
+      </span>
+    </label>
+    <ul></ul>
+    <div class="feedback">
+      Do the stuff
+    </div>
+  </jl-input>
+</form>
+
+<script>
+  document.querySelector("jl-input").search = search;
+  const $delay = document.querySelector("#delay");
+  const url_search = "https://wiki.para.se:9071/s/";
+  const log = console.log.bind(console);
+  async function search({ text, req_id }) {
+    const text_out = encodeURIComponent(text);
+    let query = "?"+($delay.checked ? "delay" : "");
+    const res = await fetch(url_search + text_out + query );
+    const json = await res.json();
+
+    return json;
+  }
+</script>

@@ -1,0 +1,108 @@
+jl-input {
+  display: inline-block;
+
+  --_padding: var(--padding, .5em);
+  --_shadow-color: var(--c-outline );
+  --_hover-color: var(--c-on-surface );
+  --_focus-color: var(--c-primary);
+  --_disabled-color: var(--c-outline-a33);
+	--_field-bg:  var(---c-background);
+  --_disabled_content_opacity: var(--opacity-disabled-content, .38);
+  --_border-width: .15rem;
+  --_border-width-focus: .25rem;
+  --_border-radius: .35rem;
+  --_ring-disabled: 0 0 0 var(--_border-width) var(--_disabled-color);
+  --_ring-unselected: 0 0 0 var(--_border-width) var(--_shadow-color);
+  --_ring-focus: 0 0 0 var(--_border-width-focus) var(--_focus-color);
+  --_ring-hover: 0 0 0 var(--_border-width) var(--_hover-color);
+
+
+  font-family: var(--font-family, sans-serif);
+}
+
+jl-input:hover>label {
+  box-shadow: var(--_ring-hover);
+}
+
+jl-input>label>.material-symbols-outlined {
+  font-size: 1.5em;
+  margin: -.25em 0;
+  /* Do not contribute to parent height */
+  user-select: none;
+  /* selecting ligature icons suck */
+}
+
+input {
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background-color: transparent;
+  width: 100%;
+}
+
+input:focus,
+input:focus-within {
+  outline: none;
+  border: none;
+}
+
+jl-input>label {
+  box-shadow: var(--_ring-unselected);
+  display: flex;
+  align-items: center;
+  gap: var(--_padding);
+
+  border-radius: var(--_border-radius);
+  padding: var(--_padding);
+  background: var(--_field-bg);
+  transition: box-shadow .2s;
+}
+
+jl-input>label:focus-within {
+  box-shadow: var(--_ring-focus);
+  /* background: color-mix(in lch, currentcolor, black); */
+}
+
+jl-input:has(input:disabled) {
+  opacity: var(--_disabled_content_opacity);
+}
+
+jl-input>label:has(input:disabled) {
+  box-shadow: var(--_ring-disabled);
+}
+
+.state-loading {
+ animation: spin 2s infinite linear;
+}
+
+.state-loading::before {
+  content: "progress_activity";
+}
+
+.state-normal::before { content: "dictionary" }
+
+jl-input>ul {
+  margin: 0;
+}
+
+.feedback {
+  font-size: .875em;
+  padding: var(--_padding);
+  /* padding-left: var(--_padding);
+  padding-top: calc( var(--_padding) *.5) */
+
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(359deg);
+  }
+}
