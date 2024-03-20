@@ -4,6 +4,7 @@
 
 
 
+
 <!-- Main theme -->
 <link rel="stylesheet" href="./theme.css" />
 <style>
@@ -123,9 +124,17 @@
 <link rel="stylesheet" href="../../jl-search.css" />
 <script type="module" src="../../jl-search.mjs"></script>
 <style>
+  jl-search {
+    --hr-color: var(--c-surface-dim, silver);
+    --shadow-color: var(--c-shadow, black);
+    --input-height: calc(var(--lineheight) * 1em + 2 * var(--padding));
+    max-width: 25em;
+  }
+
+
   /* Avoid FOUC while main style loads */
   jl-search[init] {
-    height: calc(var(--lineheight) * 1em + 2 * var(--padding));
+    height: var(--input-height);
   }
 
   jl-search[init]>* {
@@ -133,13 +142,7 @@
   }
 
 
-  jl-search {
-    --hr-color: var(--c-surface-dim, silver);
-    --shadow-color: var(--c-shadow, black);
-    max-width: 25em;
-  }
-
-  jl-search>.input-wrapper .symbol {
+  jl-search>fieldset .symbol {
     font-size: 1.5em;
     /* max set to line-height to not increase total */
     user-select: none;
@@ -173,7 +176,7 @@
 
   ul>li>img {
     object-fit: cover;
-    object-position: center 38%;
+    object-position: center top;
     grid-row: span 2;
     width: 100%;
     flex: 0 0 auto;
@@ -210,6 +213,14 @@
 
   $delay.oninput = () => localStorage.use_delay = $delay.checked;
   $delay.checked = localStorage.use_delay === "true";
+
+  const $anim = document.querySelector("#anim");
+  $anim.oninput = () => {
+    localStorage.more_anim = $anim.checked;
+    $jl_inp.toggleAttribute("more-anim", $anim.checked);
+  }
+  $anim.checked = localStorage.more_anim === "true";
+  $jl_inp.toggleAttribute("more-anim", $anim.checked);
 
   const $state = $jl_inp.querySelector(".state");
   const states = {
@@ -288,81 +299,12 @@
     });
   }
 
-
   function sleep(time) {
     return new Promise(resolve => setTimeout(resolve, time));
   }
 
+
 </script>
-
-
-
-
-
-
-<!-- ======  MAIN PAGE ====== -->
-
-<style>
-  body {
-    margin: 1rem 3rem;
-    font-family: var(--font-family);
-    line-height: var(--lineheight);
-  }
-
-  @media (max-width: 600px) {
-    body {
-      margin: 1rem;
-    }
-  }
-
-  label[for] {
-    padding-top: var(--padding);
-    white-space: nowrap;
-  }
-
-  label[for]:has(+jl-search input:disabled) {
-    opacity: var(--disabled-opacity);
-  }
-
-  form {
-    margin-top: 2rem;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--padding);
-    /* max-width: 80vw; */
-  }
-
-  form>div {
-    display: flex;
-    align-items: center;
-  }
-</style>
-<form>
-  <label for="delay">Slow down</label>
-  <div>
-    <input id="delay" type="checkbox">
-    <span>Simulate slower server responses</span>
-  </div>
-
-  <label for="field1">Search</label>
-  <jl-search init>
-    <div class="input-wrapper">
-      <span class="symbol">dictionary</span>
-      <input id="field1" autofocus placeholder="wikipedia articles" />
-      <span class="state symbol"></span>
-    </div>
-    <div class="options empty">
-      <hr>
-      <ul></ul>
-      <hr>
-      <div class="feedback"></div>
-    </div>
-  </jl-search>
-
-  <label for="email">E-mail</label>
-  <input id="email">
-</form>
-
 
 
 
@@ -417,3 +359,81 @@
     content: "light_mode";
   }
 </style>
+
+
+
+
+
+
+<!-- ======  MAIN PAGE ====== -->
+
+<style>
+  body {
+    margin: 1rem 3rem;
+    font-family: var(--font-family);
+    line-height: var(--lineheight);
+  }
+
+  @media (max-width: 600px) {
+    body {
+      margin: 1rem;
+    }
+  }
+
+  label[for] {
+    padding: var(--padding) 0;
+    white-space: nowrap;
+  }
+
+  label[for]:has(+jl-search input:disabled) {
+    opacity: var(--disabled-opacity);
+  }
+
+  form {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--padding);
+    /* max-width: 80vw; */
+  }
+
+  form>div {
+    display: flex;
+    align-items: center;
+  }
+</style>
+<form>
+  <label for="delay">Slow down</label>
+  <div>
+    <input id="delay" type="checkbox">
+    <span>Simulate slower server responses</span>
+  </div>
+
+  <label for="anim">Animate</label>
+  <div>
+    <input id="anim" type="checkbox">
+    <span>Even more unecessary animations</span>
+  </div>
+
+  <label for="field1">Search</label>
+  <jl-search init>
+    <fieldset>
+      <span class="symbol">dictionary</span>
+      <input id="field1" autofocus placeholder="wikipedia articles" />
+      <span class="state symbol"></span>
+    </fieldset>
+    <nav>
+      <section>
+        <hr>
+        <ul></ul>
+        <hr>
+        <footer></footer>
+      </section>
+    </nav>
+  </jl-search>
+
+  <!-- <label for="name">Name</label>
+  <input name="name"> -->
+
+  <p style="grid-column: span 2">Work in progress...</p>
+</form>

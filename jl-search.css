@@ -2,13 +2,13 @@ jl-search {
   display: inline-block;
   font-family: var(--font-family, sans-serif);
   --_padding: var(--padding, .5em);
-  --_enabled-color: var(--outline-color, gray );
-  --_hover-color: var(--hover-color, black );
-  --_active-color: var(--active-color, orange );
+  --_enabled-color: var(--outline-color, gray);
+  --_hover-color: var(--hover-color, black);
+  --_active-color: var(--active-color, orange);
   --_focus-color: var(--focus-color, green);
   --_focus-bg: var(--focus-bg, lightgray);
   --_disabled-color: var(--disabled-color, silver);
-	--_input-bg:  var(--input-bg);
+  --_input-bg: var(--input-bg);
   --_input-ink: var(--input-ink);
   --_disabled_content_opacity: var(--disabled-opacity, .38);
   --_border-width: var(--border-width, .15rem);
@@ -22,16 +22,43 @@ jl-search {
   --_error-container-bg: var(--error-container-bg, lightsalmon);
   --_error-container-ink: var(--error-container-ink, maroon);
 
+  /* view-transition-name: jl-search; */
+}
+
+:root{
+  --jl-search_move-speed: 0.25s;
 }
 
 
-jl-search>.input-wrapper> span{
+jl-search>fieldset {
+  /* Style reset*/
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  display: flex;
+  align-items: center;
+
+  border-radius: var(--_border-radius);
+
+  background: var(--_input-bg);
+  color: var(--_input-ink);
+  transition: box-shadow .2s;
+  view-transition-name: jl-search-field;
+
+  /* Using outline for stable position when outline width changes */
+  outline: var(--_border-width) solid var(--_outline-color);
+}
+
+
+
+jl-search>fieldset>span {
   flex: 0 0 auto;
 }
 
 jl-search input {
-  /* padding: 0; */
-  padding: var(--_padding);
+  /* No side padding because of side elements having their own spacing*/
+  padding: var(--_padding) 0;
 
   margin: 0;
   border: none;
@@ -60,25 +87,35 @@ jl-search:hover:active {
   --_outline-color: var(--_active-color);
 }
 
-jl-search>.input-wrapper {
+/* ::view-transition-group(root),
+::view-transition-image-pair(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0s;
+} */
 
-  display: flex;
-  align-items: center;
-  gap: var(--_padding);
+/* 
+::view-transition-group(jl-search),
+::view-transition-image-pair(jl-search),
+::view-transition-old(jl-search),
+::view-transition-new(jl-search) {
+  animation-duration: 0s;
+} */
 
-  border-radius: var(--_border-radius);
 
-  /* padding: var(--_padding); */
 
-  background: var(--_input-bg);
-  color: var(--_input-ink);
-  transition: box-shadow .2s;
+/* ::view-transition-image-pair(jl-search-field),
+::view-transition-old(jl-search-field),
+::view-transition-new(jl-search-field) {
+  animation-duration: 0s;
+} */
 
-  /* Using outline for stable position when outline width changes */
-  outline: var(--_border-width) solid var(--_outline-color);
+
+::view-transition-group(jl-search-field) {
+  animation-duration: 0s;
 }
 
-jl-search>.input-wrapper>.state:hover {
+jl-search>fieldset>.state:hover {
   background: var(--_focus-bg);
 }
 
@@ -86,16 +123,16 @@ jl-search:focus-within {
   --_outline-color: var(--_focus-color);
 }
 
-jl-search>.input-wrapper:focus-within {
+jl-search>fieldset:focus-within {
   outline-width: var(--_border-width-focus);
 }
 
-jl-search:has(input:disabled,input:active:disabled) {
+jl-search:has(input:disabled, input:active:disabled) {
   opacity: var(--_disabled_content_opacity);
   --_outline-color: var(--_disabled-color);
 }
 
-jl-search[opened] > .input-wrapper {
+jl-search[opened]>fieldset {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   outline-width: var(--_border-width-focus);
@@ -104,16 +141,21 @@ jl-search[opened] > .input-wrapper {
 }
 
 
-jl-search .options {
+jl-search nav {
   border-radius: var(--_border-radius);
   border-top-right-radius: 0;
   border-top-left-radius: 0;
 
   /* First line paints over the top shadow. Adding 1px for rounding errors */
-  box-shadow:
-  0 calc( -1px - var(--_border-width-focus) ) 0 0 var(--_input-bg)
-  , 0 0 0 var(--_border-width-focus) var(--_outline-color)
-  , var(--_drop-shadow);
+  --_shadow:
+    0 calc(-1px - var(--_border-width-focus)) 0 0 var(--_input-bg),
+    0 0 0 var(--_border-width-focus) var(--_outline-color),
+    var(--_drop-shadow);
+  /* --_shadow: 0 calc(-1px - var(--_border-width-focus)) 0 0 red, 0 0 0 var(--_border-width-focus) var(--_outline-color), var(--_drop-shadow); */
+
+
+  /* box-shadow:
+    0 calc(-1px - var(--_border-width-focus)) 0 0 var(--_input-bg), 0 0 0 var(--_border-width-focus) var(--_outline-color), var(--_drop-shadow); */
 
   border: 0;
   margin: 0;
@@ -126,31 +168,45 @@ jl-search .options {
   left: anchor(left);
   width: anchor-size(width);
   overflow: hidden;
+
+
+  transition: grid-template-rows var(--jl-search_move-speed) ease-out;
+  transform-origin: top center;
+
+  display: grid;
+  grid-template-rows: 0fr;
+
 }
 
-jl-search .options:not(.loaded-popover){
-  visibility:hidden;
+jl-search[opened] nav {
+  box-shadow: var(--_shadow);
 }
 
 
-/* jl-search[opened] .options {
-  visibility: visible;
-} */
+jl-search nav>section {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: fit-content;
+}
 
-jl-search .options hr {
+
+jl-search nav hr {
   border: thin solid var(--_hr-color);
   margin: 0 var(--_padding);
 }
 
-/* jl-search .options.empty ul { display: none } */
-/* jl-search .options.empty ul { max-height:0em } */
+jl-search nav.empty hr:has(+ul) {
+  display: none
+}
 
-jl-search .options.empty hr:has(+ul) { display: none }
+jl-search nav hr:has(+.error) {
+  display: none
+}
 
-jl-search .options hr:has(+.error) { display: none }
-jl-search .options .error {
+jl-search nav .error {
   /* margin: calc( 0px - var(--padding)); */
-  
+
   background: var(--_error-container-bg);
   color: var(--_error-container-ink);
 }
@@ -166,42 +222,29 @@ jl-search[data-state="error"] .state {
 jl-search ul {
   list-style: none;
   margin: 0;
-  padding: var(--_padding) 0;
+  /* padding: var(--_padding) 0; */
+  padding: 0;
 
   display: flex;
   flex-direction: column;
-  gap: var(--padding);
+  /* gap: var(--padding); */
   /* gap: calc( var(--padding) / 3 ); */
   line-height: 1;
 
-  /* transition: height 2s;
-  transition-behavior: allow-discrete; */
-
 }
 
-jl-search ul > li {
+jl-search ul>li {
   /* padding: calc(var(--_padding)/3) var(--_padding) ; */
-  padding: 0 var(--_padding) ;
+  padding: calc(var(--_padding)/2) var(--_padding);
 }
 
-/* 
-li::view-transition-old(*){
-  animation: 0.25s linear both shrink-y;
-}
-li::view-transition-new(*){
-  animation: 0.25s linear both grow-y;
-} */
 
-
-
-
-
-jl-search ul > li:hover {
+jl-search ul>li:hover {
   background: var(--_focus-bg);
   cursor: pointer;
 }
 
-jl-search .feedback {
+jl-search nav footer {
   font-size: .875em;
   padding: var(--_padding);
 
@@ -221,70 +264,97 @@ jl-search .spin {
   }
 }
 
-/* Zoom in in input on smaller screens */
 
-@media (max-width: 25rem) {
-  jl-search {
-    view-transition-name: jl-search-field;
+/* Zoom in in input on smaller screens */
+/* 30rem = 480px = larger than normal phone screens */
+@media (max-width: 30rem) {
+
+  ::view-transition-group(jl-search-field) {
+    animation-duration: var(--jl-search_move-speed);
   }
 
-  jl-search[opened] {
+  ::view-transition-old(jl-search-field),
+  ::view-transition-new(jl-search-field) {
+    height: 100%;
+  }
+
+  jl-search[data-anim=opening] nav {
+    box-shadow: none;
+  }
+
+  jl-search nav {
+    --_height: calc(100svh - 2 * var(--_border-width-focus) - var(--input-height));
+
+    transition: height var(--jl-search_move-speed) ease-out;
+    height: 0;
+    grid-template-rows: none;
+
+  }
+
+  jl-search nav>section {
+    height: auto;
+  }
+
+  jl-search:not([data-anim=closing]) nav:popover-open {
+    height: var(--_height);
+  }
+
+  jl-search:not([data-anim=closing]) nav.\:popover-open {
+    height: var(--_height);
+  }
+
+
+  jl-search[opened] fieldset {
     position: absolute;
     top: var(--_border-width-focus);
     left: var(--_border-width-focus);
-    width: calc(100% - 2 * var(--_border-width-focus) );
+    width: calc(100% - 2 * var(--_border-width-focus));
     z-index: 2;
+  }
+
+  jl-search nav.empty hr:has(+ul) {
+    display: block;
+  }
+
+  jl-search[opened] nav ul {
+    flex-grow: 1;
   }
 }
 
+
+jl-search nav:not(.loaded-popover) {
+  visibility: hidden;
+}
+
+jl-search:not([data-anim=closing]) nav.\:popover-open {
+  grid-template-rows: 1fr;
+}
+
+jl-search:not([data-anim=closing]) nav:popover-open {
+  grid-template-rows: 1fr;
+}
+
+
+
+
+
+
 @keyframes grow-y {
-  from { transform: scaleY(0) }
-  to   { transform: scaleY(1) }
+  from {
+    transform: scaleY(0)
+  }
+
+  to {
+    transform: scaleY(1)
+  }
 }
 
 @keyframes shrink-y {
-  from { transform: scaleY(1) }
-  to   { transform: scaleY(0) }
-}
-
-
-
-/* back-compat */
-[popover].\:popover-open {
-  /* transform: scaleY(1); */
-  max-height: 100svh;
-} 
-[popover]:popover-open {
-  /* transform: scaleY(1); */
-  max-height: 100svh;
-}
-
-[popover] {
-  max-height: 0svh;
-  /* transform: scaleY(0);
-  transform-origin: top; */
-
-  transition:
-    /* transform .3s, */
-    max-height .3s,
-    overlay .3s allow-discrete,
-    display .3s allow-discrete;
-}
-
-@starting-style {
-  [popover]:popover-open {
-    max-height: 0svh;
-    /* transform: scaleY(0); */
+  0% {
+    transform: scaleY(1);
   }
 
-  /* jl-search .options li {
-    height: 0rem;
-  } */
+  100% {
+    transform: scaleY(0);
+  }
 }
-
-/* jl-search .options li {
-  height: 3rem;
-  transition height 3s, overlay 3s allow-discrete, display 3s allow-discrete;
-
-}
- */

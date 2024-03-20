@@ -1,0 +1,77 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<input id="hue" type="range" min="1" max="360">
+<main></main>
+
+<script type="module">
+	const $main = document.querySelector("main");
+	for (const row of [...Array(9).keys()]) {
+		const $row = document.createElement("div");
+		$row.style.setProperty("--row", row);
+		$row.classList.add("row");
+		$main.append($row);
+
+		for( const col of [...Array(10).keys()]){
+			const $col = document.createElement("div");
+			$col.style.setProperty("--col", col);
+			$col.classList.add("col");
+			$row.append($col);
+		}
+	}
+
+	const $hue = document.querySelector("#hue");
+	const style = document.documentElement.style;
+	$hue.oninput = ()=>style.setProperty("--my-h", $hue.value);
+	$hue.oninput();
+
+</script>
+
+
+<style>
+	:root {
+		--my-h: 310;
+		--box: 7vw;
+		--pad: 1vw;
+	}
+
+	body {
+		background: black;
+		color: white;
+
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	main {
+		background: lightgray;
+		color: black;
+
+		display: flex;
+		flex-direction: column;
+
+		padding: var(--pad);
+		gap: var(--pad);
+	}
+
+	input {
+		width: 80vw;
+		display: inline-block;
+		padding: 1em 0;
+	}
+
+	main .row {
+		--my-l: calc( var(--row) * 10 );
+		display: flex;
+		gap: var(--pad);
+	}
+
+	main .col {
+		width: var(--box);
+		height: var(--box);
+		--my-s: calc( var(--col) * 10 );
+		background: hsl( var(--my-h) var(--my-s) var(--my-l) );
+		/* background: hsl( 120 100 100 ); */
+	}
+</style>
