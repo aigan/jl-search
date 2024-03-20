@@ -5,7 +5,51 @@
 
 
 
+
+<!-- Telemetry -->
+
+<script>
+  window._logging = [];
+  const console_default = {};
+  for (const channel of ["log", "warn", "error"]) {
+    console_default[channel] = console[channel].bind(console);
+    console[channel] = (...args) => track(channel, args);
+  }
+
+  window.onerror = (message, source, lineno, colno, error) => {
+    if (!error) {
+      error = Error(message);
+      Object.assign(error, { source, lineno, colno });
+    }
+    track("error", [error]);
+    return true;
+  }
+
+  window.addEventListener("unhandledrejection", ev => {
+    track("unhandledrejection", [ev.reason]);
+    ev.preventDefault();
+  })
+
+  function track(channel, args) {
+    if (console_default[channel]) console_default[channel].apply(console, args);
+    // console.debug(channel, Date.now(), ...args);
+    window._logging.push([channel, Date.now(), ...args]);
+  }
+
+  window.addEventListener('load',
+    () => console.log("Start tracking", window._logging),
+    { once: true }
+  );
+
+</script>
+
+
+
+
+
+
 <!-- Main theme -->
+
 <link rel="stylesheet" href="./theme.css" />
 <style>
   /* For keeping sizing in css, avoid fractions. */
@@ -196,6 +240,7 @@
   }
 </style>
 <script type="module">
+  // eslint-disable-next-line no-unused-vars
   const log = console.log.bind(console);
   // May be necessary to wait on element upgrade
   // await customElements.whenDefined("jl-search");
@@ -203,7 +248,6 @@
   const $jl_inp = document.querySelector("jl-search");
   // log("attatching search", $jl_inp._id);
   const $delay = document.querySelector("#delay");
-  // const url_search = "https://hem.jonas.liljegren.org:9081/s/";
   const url_search = "https://wiki.para.se:9071/s/";
 
   $jl_inp.search = async function search({ query, req_id }) {
@@ -245,14 +289,13 @@
   const url_sum = "https://en.wikipedia.org/api/rest_v1/page/summary/";
   const recs = new Map();
   $jl_inp.prepare_options = async q_res => {
-
     // log("prepare", q_res);
     const found = q_res.found;
     const max = Math.min(found.length, $jl_inp._page_size);
     const recs_p = [];
     for (let i = 0; i < max; i++) {
-      const title = found[i];
-      recs_p.push(get_rec(title));
+      const opt_id = found[i];
+      recs_p.push(get_rec(opt_id));
     }
     // log("prepared", recs_p);
 
@@ -261,19 +304,19 @@
     // return Promise.all( recs_p);
   }
 
-  function get_rec(title) {
+  function get_rec(opt_id) {
     // log("get rec", title);
-    if (recs.has(title)) return recs.get(title);
-    const promise = load_rec(title);
-    recs.set(title, promise);
+    if (recs.has(opt_id)) return recs.get(opt_id);
+    const promise = load_rec(opt_id);
+    recs.set(opt_id, promise);
     // Replace the promise with the result when done
     // promise.then( rec=> recs.set(title, rec) );
     return promise;
   }
 
-  async function load_rec(title) {
+  async function load_rec(opt_id) {
     // log("Loading", title);
-    const res = await fetch(url_sum + encodeURIComponent(title));
+    const res = await fetch(url_sum + encodeURIComponent(opt_id));
     const rec = await res.json();
     // log("Loaded", title, "=>", rec.title);
     return rec;
@@ -281,9 +324,9 @@
 
   const url_thumb_default = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/225px-Wikipedia-logo-v2.svg.png";
 
-  $jl_inp.render_item_content = ($li, name) => {
-    const rec_p = recs.get(name);
-    const title = $jl_inp.format(name);
+  $jl_inp.render_item_content = ($li, opt_id) => {
+    const rec_p = recs.get(opt_id);
+    const title = $jl_inp.format(opt_id);
 
     const $img = document.createElement("img");
     const $title = document.createElement("b");
@@ -301,8 +344,8 @@
         $img.src = rec.thumbnail.source;
         $img.classList.remove("default");
       }
-    }).catch(err=>{
-      console.warn("Failed to get", name, err);
+    }).catch(err => {
+      console.warn("Failed to get", opt_id, err);
     })
   }
 
@@ -311,14 +354,11 @@
   // Keeping trailing space allows search for word break
   $jl_inp.parse = text => text.trimStart().replaceAll(/\s+/g, "_");
 
-  $jl_inp.format = id => id.replaceAll("_", " ");
-
-  function sleep(time) {
-    return new Promise(resolve => setTimeout(resolve, time));
-  }
+  $jl_inp.format = opt_id => opt_id.replaceAll("_", " ");
 
   $jl_inp.addEventListener("change", async ev => {
-    const title = $jl_inp.value;
+    // const opt_id = $jl_inp.value;
+    const opt_id = ev.target.value;
     // log("handling change event");
     const $art = document.querySelector("article");
 
@@ -327,12 +367,12 @@
       ? Promise.resolve()
       : $art.animate([{ opacity: 1 }, { opacity: 0 }], 500);
 
-    const rec = await get_rec(title);
+    const rec = await get_rec(opt_id);
 
     // Start loading image while fadeout animates
     const $img = document.createElement("img");
     const img_loaded = new Promise((resolve, reject) => {
-      if( !rec.thumbnail ) return resolve();
+      if (!rec.thumbnail) return resolve();
       $img.src = rec.thumbnail.source;
       $img.onload = resolve;
       $img.onerror = reject;
