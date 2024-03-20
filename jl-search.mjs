@@ -1,20 +1,24 @@
 const log = console.log.bind(console);
-const caps = {}; // Capabilities, through polyfill or otherwise
-load_caps(caps);
 
+// Capabilities, through polyfill or otherwise
+export const caps = {};
 
+export function init() {
+  load_caps();
+  customElements.define(El.is, El);
+}
 
 
 let element_id = 0;
-
+export { El as JlSearch }
 class El extends HTMLElement {
 
-  static is = "jl-search"
-
+  static is = "jl-search";
 
   _id = ++element_id;
-  _caps = caps; // Expose capability promises
+  // _caps = caps; // Expose capability promises
 
+  _ready = false; // For one-time setup
   _ev = {};  // Event listeners
   _error = null; // Aggregated error state
 
@@ -68,9 +72,46 @@ class El extends HTMLElement {
   constructor() {
     super();
     const $el = this;
-
-
     $el.setup_visited();
+  }
+
+
+
+  connectedCallback() {
+    const $el = this;
+    // log("connected", $el._$inp.disabled);
+
+    /*
+     Possibly add setup(), init(), onReady(), config() or similar
+     */
+
+    $el._ev.document = {
+      selectionchange: ev => $el.on_selectionchange(ev),
+    }
+
+    for (const [type, listener] of Object.entries($el._ev.document)) {
+      document.addEventListener(type, listener);
+    }
+
+    // Auto-setup elements if they exist
+    if (!$el._ready && $el.querySelector("fieldset")) $el.setup_dom();
+  }
+
+
+
+  disconnectedCallback() {
+    const $el = this;
+    for (const [type, listener] of Object.entries($el._ev.document)) {
+      document.removeEventListener(type, listener);
+    }
+
+  }
+
+
+
+  setup_dom() {
+    const $el = this;
+    $el._ready = true;
 
     // Not handling DOM mutations in this implementation
     $el._$inp = $el.querySelector("input");
@@ -89,7 +130,8 @@ class El extends HTMLElement {
     $el.setup_$state();
 
 
-    // log(El.is, $el._id, "initiated");
+    //Wait on other modules adding callbacks
+    if (!$el._$inp.disabled) $el.first_input();
   }
 
 
@@ -97,10 +139,51 @@ class El extends HTMLElement {
   setup_$field() {
     const $el = this;
     const $field = $el._$field;
-    if (!$field.id) $field.setAttribute("id", `${El.is}-anchor-${$el._id}`);
+    const name = $el.constructor.is;
+    if (!$field.id) $field.setAttribute("id", `${name}-anchor-${$el._id}`);
     // log("setup label", $field);
 
-    $field.addEventListener("click", ev => $el.on_field_click(ev));
+    $el._ev.field = {
+      click: ev => $el.on_field_click(ev),
+    }
+
+    for (const [type, listener] of Object.entries($el._ev.field)) {
+      $field.addEventListener(type, listener);
+    }
+
+    if (caps.missing.anchor_positioning) {
+      let x = 0, y = 0, w = 0, h = 0, run = false;
+
+      $el._ev.field_raf_start = () => {
+        run = true;
+        // log("starting raf");
+        requestAnimationFrame(raf);
+      }
+
+      $el._ev.field_raf_stop = () => {
+        run = false;
+        // log("stopping raf");
+      }
+
+      const raf = () => {
+        if (!run) return;
+        if (
+          $field.offsetTop === y &&
+          $field.offsetLeft === x &&
+          $field.offsetWidth === w &&
+          $field.offsetHeight === h
+        ) return requestAnimationFrame(raf);
+
+        // log("field position changed");
+        x = $field.offsetLeft;
+        y = $field.offsetTop;
+        w = $field.offsetWidth;
+        h = $field.offsetHeight;
+        $el.render_position_below($el._$opts, $field);
+        requestAnimationFrame(raf);
+      }
+    }
+
   }
 
 
@@ -118,22 +201,24 @@ class El extends HTMLElement {
       // $opts.style.animationIterationCount = "0";
     });
 
-    $opts.addEventListener("click", ev => $el.on_opts_click(ev));
-
     let open_promise = null;
     let open_resolve;
     $opts.get_open_promise = () => {
       // Can't use only :popover-open since it might not have finished open?
       // Or did I miss something
       // if ($opts.matches(":popover-open") && $opts.offsetParent) {
-      if ($opts.matches(":popover-open")) {
-        // log("get_open_promise");
-        // log(":popover-open", $el.querySelector(":popover-open"));
-        // log("offsetParent", $opts.offsetParent);
+      if ($opts.matches(":popover-open")) return Promise.resolve();
+
+      // Are we animating? Since support for computedStyleMap is limited, we
+      // just check for the default value of "0s" for no animation.
+      if (getComputedStyle($opts).transitionDuration === "0s")
         return Promise.resolve();
-      }
+
+      if (!$opts.computedStyleMap().get('transition-duration').value)
+        return Promise.resolve();
 
       if (open_promise) return open_promise;
+
       return open_promise = new Promise(resolve => {
         // log("Creating new open_promise");
         open_resolve = resolve;
@@ -143,19 +228,22 @@ class El extends HTMLElement {
     let close_promise = null;
     let close_resolve;
     $opts.get_close_promise = () => {
-      if (!$opts.matches(":popover-open")) {
-        // log("get_close_promise");
-        return Promise.resolve();
-      }
+      if (!$opts.matches(":popover-open")) return Promise.resolve();
 
       if (close_promise) return close_promise;
+
+      // Are we animating? Since support for computedStyleMap is limited, we
+      // just check for the default value of "0s" for no animation.
+      if (getComputedStyle($opts).transitionDuration === "0s")
+        return Promise.resolve();
+
       return close_promise = new Promise(resolve => {
         // log("Creating new close_promise");
         close_resolve = resolve;
       });
     }
 
-    $opts.addEventListener("transitionend", ev => {
+    const on_transitionend = ev => {
       if (ev.target !== $opts) return; // Ignore transition from children
 
       if ($el.dataset.anim === "opening") {
@@ -175,7 +263,16 @@ class El extends HTMLElement {
       }
 
       // log("transition", ev.target, ev);
-    });
+    }
+
+    $el._ev.opts = {
+      transitionend: on_transitionend,
+      click: ev => $el.on_opts_click(ev),
+    }
+
+    for (const [type, listener] of Object.entries($el._ev.opts)) {
+      $opts.addEventListener(type, listener);
+    }
 
   }
 
@@ -195,7 +292,8 @@ class El extends HTMLElement {
     const $inp = $el._$inp;
 
     // Adding defaults
-    for (const [attr, value] of Object.entries(El.input_defaults)) {
+    const defaults = $el.constructor.input_defaults;
+    for (const [attr, value] of Object.entries(defaults)) {
       if ($inp.hasAttribute(attr)) continue;
       $inp.setAttribute(attr, value);
     }
@@ -228,8 +326,7 @@ class El extends HTMLElement {
       $state.addEventListener(type, listener);
     }
 
-    $el.dataset.state = "loading";
-    $el.render_state($el.dataset.state);
+    $el.render_state($el.get_state());
   }
 
 
@@ -247,44 +344,6 @@ class El extends HTMLElement {
     }
 
     caps.loaded.then(() => $el.removeAttribute("init"));
-
-    $el.dataset.state = "loading";
-  }
-
-
-
-  connectedCallback() {
-    const $el = this;
-    // super.connectedCallback();
-    // log("connected", $el._$inp.disabled);
-
-    // const $inp = $el._$inp;
-
-    /*
-     Possibly add setup(), init(), onReady(), config() or similar
-     */
-
-    $el._ev.document = {
-      selectionchange: ev => $el.on_selectionchange(ev),
-    }
-
-    for (const [type, listener] of Object.entries($el._ev.document)) {
-      document.addEventListener(type, listener);
-    }
-
-
-    //Wait on other modules adding callbacks
-    if (!$el._$inp.disabled) $el.first_input();
-  }
-
-
-
-  disconnectedCallback() {
-    const $el = this;
-    for (const [type, listener] of Object.entries($el._ev.document)) {
-      document.removeEventListener(type, listener);
-    }
-
   }
 
 
@@ -295,7 +354,7 @@ class El extends HTMLElement {
 
     await caps.loaded;
     // await sleep(3000);
-    await $el.regain_focus(); // only conditionally
+    // await $el.regain_focus(); // only conditionally
     if (!navigator.userActivation.hasBeenActive) $el.input_select();
 
     log($el.input_debug($inp.value, 0, $inp.value.length, "first_input"))
@@ -315,6 +374,7 @@ class El extends HTMLElement {
   async on_state_click(ev) {
     const $el = this;
     ev.stopPropagation(); // do $el.onclick after
+    if ($el._$inp.disabled) return;
 
     // const state = $el.dataset.state;
     // log("Click on state", state, "toggle", ev);
@@ -337,11 +397,10 @@ class El extends HTMLElement {
 
   on_field_click(ev) {
     const $el = this;
-    log("CLICK field (userselect)");
+    // log("CLICK field (userselect)");
 
     $el._pos_persist = false; // Allow text de-selection
     $el._$inp.focus();
-
   }
 
 
@@ -356,7 +415,7 @@ class El extends HTMLElement {
 
   on_focusout(ev) {
     const $el = this;
-    log("on_focusout");
+    // log("on_focusout");
     if ($el.has_focus) return;
     if ($el._mouse_inside) return;
 
@@ -373,6 +432,7 @@ class El extends HTMLElement {
     // Since mobile browser often miss the text-selection status, we will
     // handle events here if possible. See autocomplete()
 
+    this._do_autocomplete = true;
     const $inp = $el._$inp;
     const txt = $inp.value;
     const pos1 = $inp.selectionStart;
@@ -586,7 +646,7 @@ class El extends HTMLElement {
 
     if (($el._pos1 === $el._pos2) && (pos1 === pos2)) return;
 
-    if (pos2 === txt.length) {
+    if (pos2 === txt.length && pos1 > 0) {
       const txt_prefix = txt.slice(0, pos1);
       log($el.input_debug(txt, pos1, pos2, "on_select -> search START"));
       return $el.handle_search_input(txt_prefix);
@@ -670,7 +730,8 @@ class El extends HTMLElement {
   on_opts_click(ev) {
     const $el = this;
 
-    const $target = ev.target.closest(El.is + " nav li");
+    const name = $el.constructor.is;
+    const $target = ev.target.closest(name + " nav li");
     if (!$target) return;
     $el.select_option($target.dataset.id);
   }
@@ -753,7 +814,7 @@ class El extends HTMLElement {
 
   get_tooltip(state) {
     const $el = this;
-    const tip = El.states[state][1];
+    const tip = $el.constructor.states[state][1];
     return (typeof tip === 'function') ? tip.apply($el) : tip;
   }
 
@@ -773,6 +834,8 @@ class El extends HTMLElement {
 
   get_state() {
     const $el = this;
+    if ($el._$inp.disabled) return "closed";
+    if (!$el._input_ready) return "loading";
     // return "loading";
     if ($el._searching) return "loading";
     if ($el._error) return "error";
@@ -823,7 +886,7 @@ class El extends HTMLElement {
 
 
   get spinner() {
-    return El.spinner;
+    return this.constructor.spinner;
   }
 
 
@@ -969,7 +1032,7 @@ class El extends HTMLElement {
 
     // log("show_options caps");
     await caps.popover;
-    await caps.anchor_positioning; // wait on slow polyfill loads
+    // await caps.anchor_positioning; // wait on slow polyfill loads
     if ($el.dataset.anim !== "opening") return;
 
     // log("show_options set opened");
@@ -983,6 +1046,11 @@ class El extends HTMLElement {
     // log("show_options popover");
     $el._$opts.togglePopover(true);
 
+    if (caps.missing.anchor_positioning) {
+      $el.render_position_below($el._$opts, $el._$field);
+      $el._ev.field_raf_start();
+    }
+
   }
 
 
@@ -995,6 +1063,7 @@ class El extends HTMLElement {
     // screen.)
 
     const should_animate = window.matchMedia('(max-width: 30rem)').matches;
+    // log("toggle_options", force, should_animate);
     if (should_animate) {
       await $el.startViewTransition("toggle_options", () => {
         $el.toggleAttribute("opened", force);
@@ -1018,12 +1087,15 @@ class El extends HTMLElement {
     $el.dataset.anim = "closing";
 
     // log("hide_options popver");
-    const closed = $el._$opts.get_close_promise();
-    await closed;
+    await $el._$opts.get_close_promise();
 
     if ($el.dataset.anim !== "closing") return;
     $el._$opts.hidePopover();
     delete $el.dataset.anim;
+
+    if (caps.missing.anchor_positioning) {
+      $el._ev.field_raf_stop();
+    }
 
     // log("hide_options set closed");
     await $el.toggle_options(false);
@@ -1068,6 +1140,7 @@ class El extends HTMLElement {
     const $inp = $el._$inp;
 
     // Only used for a workaround for autofocus not sticking during page load.
+    // Only problem with the anchor_positioning polyfill, so not used now.
 
     if (!$inp.autofocus) return;
     if ($inp.disabled) return;
@@ -1462,9 +1535,9 @@ class El extends HTMLElement {
     const idx = visited.indexOf(opt_id);
     if (idx !== -1) visited.splice(idx, 1);
     visited.unshift(opt_id);
-    if (visited.length > $el._page_size) visited.langth = $el._page_size;
+    if (visited.length > $el._page_size) visited.length = $el._page_size;
 
-    localStorage.setItem("jl-search_visited", JSON.stringify(visited));
+    localStorage.setItem("jl-input_visited", JSON.stringify(visited));
   }
 
 
@@ -1476,7 +1549,7 @@ class El extends HTMLElement {
     // Keep the render order even if visited list changes
     const latest = [...$el._visited];
     const res = {
-      ...El.data_tmpl,
+      ...$el.constructor.data_tmpl,
 
       req: req_id,
       query: "",
@@ -1494,7 +1567,7 @@ class El extends HTMLElement {
 
   setup_visited() {
     const $el = this;
-    const visited_raw = localStorage.getItem("jl-search_visited");
+    const visited_raw = localStorage.getItem("jl-input_visited");
     // log("setup visited", visited_raw );
     if (!visited_raw) return;
     $el._visited = JSON.parse(visited_raw);
@@ -1627,7 +1700,7 @@ class El extends HTMLElement {
     const $li = document.createElement("li");
     $li.dataset.id = opt_id;
     $li.ariaSelected = highlighted;
-    // $li.style.viewTransitionName = `jl-search-${$el._id}-li-${++$el._li_id}`;
+    // $li.style.viewTransitionName = `jl-input-${$el._id}-li-${++$el._li_id}`;
     $el.render_item_content($li, opt_id);
     return $li;
   }
@@ -1660,7 +1733,7 @@ class El extends HTMLElement {
   render_state_html(state) {
     const $el = this;
     // log("render state", state, "html to", El.states[state][0]);
-    $el._$state.innerHTML = El.states[state][0];
+    $el._$state.innerHTML = $el.constructor.states[state][0];
   }
 
 
@@ -1683,10 +1756,22 @@ class El extends HTMLElement {
 
 
 
+  render_position_below($target, $anchor) {
+    const a_rect = $anchor.getBoundingClientRect();
+    const { width, bottom, left } = a_rect;
+    const t_style = $target.style;
+    // log("Position anchor to", { width, bottom, left });
+    t_style.width = width + "px";
+    t_style.top = bottom + "px";
+    t_style.left = left + "px";
+
+  }
+
+
+
 
 }
 
-customElements.define(El.is, El);
 // log("element defined");
 
 
@@ -1707,8 +1792,9 @@ function global_onclick(ev) {
 
 
 
-function load_caps(caps) {
+export function load_caps() {
   caps.polyfilled = {};
+  caps.missing = {};
   caps.popover = load_polyfill_popover();
   caps.anchor_positioning = load_polyfill_anchor_positioning();
   caps.scroll_into_view = load_polyfill_scroll_into_view();
@@ -1721,13 +1807,13 @@ function load_caps(caps) {
     window.addEventListener('load', () => setTimeout(resolve, 0), { once: true });
   });
 
-  // return;
+  // return caps;
   for (const [name, promise] of Object.entries(caps)) {
     if (!caps.polyfilled[name]) continue;
     // log("Capability", name);
     promise.then(() => log("Capability", name, "ready"));
   }
-
+  return caps;
 }
 
 
@@ -1752,28 +1838,26 @@ async function load_polyfill_popover() {
 
 
 async function load_polyfill_anchor_positioning() {
-  if ("anchorName" in document.documentElement.style) return Promise.resolve();
-  caps.polyfilled.anchor_positioning = true;
-  const { default: polyfill } = await import("https://unpkg.com/@oddbird/css-anchor-positioning/dist/css-anchor-positioning-fn.js");
-  await polyfill();
+  if ("anchorName" in document.documentElement.style) return;
+
+  // Since the css-anchor-positioning polyfill doesn't handle shadow-dom, I
+  // can do my own progressive enhancement in code.
+  return caps.missing.anchor_positioning = true;
+
+  // caps.polyfilled.anchor_positioning = true;
+  // const { default: polyfill } = await import("https://unpkg.com/@oddbird/css-anchor-positioning/dist/css-anchor-positioning-fn.js");
+  // await polyfill();
   // await sleep(0); // Go to the back of the queue
 }
 
 
-
-function load_polyfill_scroll_into_view() {
-  if (Element.prototype.scrollIntoViewIfNeeded) {
-    // $el => $el.scrollIntoViewIfNeeded();
-    return Promise.resolve();
-  } else {
-    caps.polyfilled.scroll_into_view = true;
-    const cnf = { scrollMode: 'if-needed', block: 'nearest' };
-    return import('https://esm.sh/scroll-into-view-if-needed')
-      .then(pkg => {
-        Element.prototype.scrollIntoViewIfNeeded = function () {
-          pkg.default(this, cnf)
-        }
-      })
+async function load_polyfill_scroll_into_view() {
+  if (Element.prototype.scrollIntoViewIfNeeded) return;
+  caps.polyfilled.scroll_into_view = true;
+  const cnf = { scrollMode: 'if-needed', block: 'nearest' };
+  const pkg = await import('https://esm.sh/scroll-into-view-if-needed');
+  Element.prototype.scrollIntoViewIfNeeded = function () {
+    pkg.default(this, cnf);
   }
 }
 

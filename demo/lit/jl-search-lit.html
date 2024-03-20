@@ -1,26 +1,22 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+
+<script type="module" src="./preload.mjs"></script>
 <script type="module">
-  import "./preload.mjs";
   import "./jl-search-lit.mjs";
 </script>
-
 <style>
-  body {
-    background: #EEF;
-    font-size: 2rem;
-  }
+main {
+  margin: 5em 2em;
+}
+jl-search-wiki {
+  max-width: 25em;
+  width: 75%;
+}
 </style>
 
-<p>Will come back to lit later...</p>
-
-<jl-search lock
-          prefix="@"
-          label="E-mail"
-          default_value="glop">load</jl-search>
-
-<jl-search
-          prefix="@"
-          label="E-mail">load</jl-search>
+<main>
+  <jl-search-wiki></jl-search-wiki>
+</main>
 

@@ -8,11 +8,12 @@ jl-search {
   --_active-color: var(--active-color, orange);
   --_focus-color: var(--focus-color, green);
   --_focus-bg: var(--focus-bg, lightgray);
+  --_highlight-bg: var(--highlight-bg, lightgreen);
   --_disabled-color: var(--disabled-color, silver);
-  --_input-bg: var(--input-bg);
-  --_input-ink: var(--input-ink);
-  --_selected-bg: var(--selected-bg);
-  --_selected-ink: var(--selected-ink);
+  --_input-bg: var(--input-bg, white);
+  --_input-ink: var(--input-ink, black);
+  --_selected-bg: var(--selected-bg, lightgreen);
+  --_selected-ink: var(--selected-ink, maroon);
   --_disabled_content_opacity: var(--disabled-opacity, .38);
   --_border-width: var(--border-width, .15rem);
   --_border-width-focus: var(--border-width-focus, .25rem);
@@ -25,9 +26,12 @@ jl-search {
   --_error-container-bg: var(--error-container-bg, lightsalmon);
   --_error-container-ink: var(--error-container-ink, maroon);
 
+  --_outline-width: var(--_border-width);
+  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
 }
 
 :root{
+  /* Variables that has to be in root. This is ignored if adopted in shadow */
   --jl-search_move-speed: 0.25s;
 }
 
@@ -50,8 +54,15 @@ jl-search>fieldset {
   transition: box-shadow .2s;
   view-transition-name: jl-search-field;
 
-  /* Using outline for stable position when outline width changes */
-  outline: var(--_border-width) solid var(--_outline-color);
+  /* Since the options popover are using shadow as an outline for handline the
+  border different, using a masking color for the top, we must use box-shadow
+  here also in order to have a consistent border between this and the
+  popover.*/
+  --_outline-width: var(--_border-width);
+
+  /* outline: var(--_border-width) solid var(--_outline-color); */
+  /* box-shadow: 0 0 0 var(--_outline-width) var(--_outline-color); */
+  box-shadow: var(--_outline);
 }
 
 jl-search[selected]>fieldset{
@@ -82,6 +93,10 @@ jl-search input {
   width: 100%;
 }
 
+jl-search input::selection{
+  background: var(--_highlight-bg);
+}
+
 jl-search input:focus,
 jl-search input:focus-within {
   outline: none;
@@ -100,9 +115,12 @@ jl-search:hover:active {
   animation-duration: 0s;
 }
 
-jl-search>fieldset>.state:hover {
+jl-search>fieldset:has(input:not(:disabled)) .state:hover {
   /* Allows for hover on any bg  */
   background: color-mix(in oklch, var(--_bg) var(--_hover-brightness), black);
+
+  /*Will be cut off by the options shadow masking  bottom*/
+  border-radius: var(--_border-radius);
   cursor: pointer;
 }
 
@@ -110,21 +128,25 @@ jl-search:focus-within {
   --_outline-color: var(--_focus-color);
 }
 
-jl-search>fieldset:focus-within {
-  outline-width: var(--_border-width-focus);
-}
+/* jl-search>fieldset:focus-within {
+  --_outline-width: var(--_border-width-focus);
+} */
 
 jl-search:has(input:disabled, input:active:disabled) {
   opacity: var(--_disabled_content_opacity);
   --_outline-color: var(--_disabled-color);
+  box-shadow: 0 0 0 var(--_outline-width) var(--_outline-color);
 }
 
 jl-search[opened]>fieldset {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  outline-width: var(--_border-width-focus);
+  /* outline-width: var(--_border-width-focus); */
+  --_outline-width: var(--_border-width-focus);
 
-  box-shadow: var(--_drop-shadow);
+  box-shadow: 
+  0 0 0 var(--_outline-width) var(--_outline-color), 
+  var(--_drop-shadow);
 }
 
 
@@ -133,22 +155,21 @@ jl-search nav {
   border-top-right-radius: 0;
   border-top-left-radius: 0;
 
+  --_outline-width: var(--_border-width-focus);
+
   /* First line paints over the top shadow. Adding 1px for rounding errors */
   --_shadow:
     0 calc(-1px - var(--_border-width-focus)) 0 0 var(--_input-bg),
     0 0 0 var(--_border-width-focus) var(--_outline-color),
     var(--_drop-shadow);
-  /* --_shadow: 0 calc(-1px - var(--_border-width-focus)) 0 0 red, 0 0 0 var(--_border-width-focus) var(--_outline-color), var(--_drop-shadow); */
 
-
-  /* box-shadow:
-    0 calc(-1px - var(--_border-width-focus)) 0 0 var(--_input-bg), 0 0 0 var(--_border-width-focus) var(--_outline-color), var(--_drop-shadow); */
 
   border: 0;
   margin: 0;
   padding: 0;
   background: var(--_input-bg);
 
+  /* anchor positioning polyfill will not work in shadow-dom */
   box-sizing: border-box;
   position: absolute;
   top: anchor(bottom);
@@ -233,8 +254,7 @@ jl-search ul>li {
 }
 
 jl-search ul>li[aria-selected=true]{
-  --_bg: var(--c-secondary-container);
-  /* background: var(--c-secondary-container); */
+  --_bg: var(--_highlight-bg);
 }
 
 jl-search ul>li:hover {

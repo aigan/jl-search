@@ -9,37 +9,38 @@
 <!-- Telemetry -->
 
 <script>
-  window._logging = [];
-  const console_default = {};
-  for (const channel of ["log", "warn", "error"]) {
-    console_default[channel] = console[channel].bind(console);
-    console[channel] = (...args) => track(channel, args);
-  }
+  
+  // window._logging = [];
+  // const console_default = {};
+  // for (const channel of ["log", "warn", "error"]) {
+  //   console_default[channel] = console[channel].bind(console);
+  //   console[channel] = (...args) => track(channel, args);
+  // }
 
-  window.onerror = (message, source, lineno, colno, error) => {
-    if (!error) {
-      error = Error(message);
-      Object.assign(error, { source, lineno, colno });
-    }
-    track("error", [error]);
-    return true;
-  }
+  // window.onerror = (message, source, lineno, colno, error) => {
+  //   if (!error) {
+  //     error = Error(message);
+  //     Object.assign(error, { source, lineno, colno });
+  //   }
+  //   track("error", [error]);
+  //   return true;
+  // }
 
-  window.addEventListener("unhandledrejection", ev => {
-    track("unhandledrejection", [ev.reason]);
-    ev.preventDefault();
-  })
+  // window.addEventListener("unhandledrejection", ev => {
+  //   track("unhandledrejection", [ev.reason]);
+  //   ev.preventDefault();
+  // })
 
-  function track(channel, args) {
-    if (console_default[channel]) console_default[channel].apply(console, args);
-    // console.debug(channel, Date.now(), ...args);
-    window._logging.push([channel, Date.now(), ...args]);
-  }
+  // function track(channel, args) {
+  //   if (console_default[channel]) console_default[channel].apply(console, args);
+  //   // console.debug(channel, Date.now(), ...args);
+  //   window._logging.push([channel, Date.now(), ...args]);
+  // }
 
-  window.addEventListener('load',
-    () => console.log("Start tracking", window._logging),
-    { once: true }
-  );
+  // window.addEventListener('load',
+  //   () => console.log("Start tracking", window._logging),
+  //   { once: true }
+  // );
 
 </script>
 
@@ -60,7 +61,7 @@
     --disabled-opacity: .38;
     --font-family: sans-serif;
     --border-radius: .25rem;
-    --border-width: .15rem;
+    --border-width: .125rem;
     --border-width-focus: .1875rem;
     --outline-color: var(--c-outline, gray);
     --input-bg: var(--c-surface-bright);
@@ -70,6 +71,7 @@
     --hover-color: var(--c-on-surface, black);
     --focus-color: var(--c-primary, green);
     --focus-bg: var(--c-surface-dim, lightgray);
+    --highlight-bg: var(--c-secondary-container);
     --active-color: var(--c-tertiary-container, orange);
     --disabled-color: var(--c-outline-a33, silver);
     --error-ink: var(--c-error, red);
@@ -105,7 +107,6 @@
     transition: opacity 1.5s;
   }
 
-  /* keep expected width before ligature replacement */
   html:not(.loaded-symbols) .symbol {
     opacity: 0;
   }
@@ -113,6 +114,13 @@
   input[type="checkbox"]:checked::before {
     font-family: 'Material Symbols Outlined';
     content: "check";
+  }
+
+  jl-search>fieldset .symbol {
+    font-size: 1.5em;
+    /* max set to line-height to not increase total */
+    user-select: none;
+    padding: calc(var(--_padding) - .25em);
   }
 </style>
 
@@ -168,7 +176,6 @@
 <!-- =====  Search component  ===== --->
 
 <link rel="stylesheet" href="../../jl-search.css" />
-<script type="module" src="../../jl-search.mjs"></script>
 <style>
   jl-search {
     --hr-color: var(--c-surface-dim, silver);
@@ -185,14 +192,6 @@
 
   jl-search[init]>* {
     display: none;
-  }
-
-
-  jl-search>fieldset .symbol {
-    font-size: 1.5em;
-    /* max set to line-height to not increase total */
-    user-select: none;
-    padding: calc(var(--_padding) - .25em);
   }
 
   @keyframes fade_in {
@@ -240,17 +239,20 @@
   }
 </style>
 <script type="module">
+  import {init} from "../../jl-search.mjs";
+  init();
+
   // eslint-disable-next-line no-unused-vars
   const log = console.log.bind(console);
   // May be necessary to wait on element upgrade
   // await customElements.whenDefined("jl-search");
 
-  const $jl_inp = document.querySelector("jl-search");
+  const $inp1 = document.querySelector("[for=field1] + jl-search");
   // log("attatching search", $jl_inp._id);
   const $delay = document.querySelector("#delay");
   const url_search = "https://wiki.para.se:9071/s/";
 
-  $jl_inp.search = async function search({ query, req_id }) {
+  $inp1.search = async function search({ query }) {
     if (query === "i am lying") throw Error("BOOM");
 
     const query_out = encodeURIComponent(query);
@@ -266,21 +268,21 @@
   const $anim = document.querySelector("#anim");
   $anim.oninput = () => {
     localStorage.more_anim = $anim.checked;
-    $jl_inp.toggleAttribute("more-anim", $anim.checked);
+    $inp1.toggleAttribute("more-anim", $anim.checked);
   }
   $anim.checked = localStorage.more_anim === "true";
-  $jl_inp.toggleAttribute("more-anim", $anim.checked);
+  $inp1.toggleAttribute("more-anim", $anim.checked);
 
-  const $state = $jl_inp.querySelector(".state");
+  const $state = $inp1.querySelector(".state");
   const states = {
     closed: "expand_more",
     opened: "expand_less",
     // loading: "progress_activity",
-    loading: $jl_inp.spinner,
+    loading: $inp1.spinner,
     error: "sentiment_very_dissatisfied",
   }
 
-  $jl_inp.render_state_html = state => {
+  $inp1.render_state_html = state => {
     //Could also do this in css with before content
     // log("setting state", state, "html to", states[state] );
     $state.innerHTML = states[state];
@@ -288,10 +290,10 @@
 
   const url_sum = "https://en.wikipedia.org/api/rest_v1/page/summary/";
   const recs = new Map();
-  $jl_inp.prepare_options = async q_res => {
+  $inp1.prepare_options = async q_res => {
     // log("prepare", q_res);
     const found = q_res.found;
-    const max = Math.min(found.length, $jl_inp._page_size);
+    const max = Math.min(found.length, $inp1._page_size);
     const recs_p = [];
     for (let i = 0; i < max; i++) {
       const opt_id = found[i];
@@ -317,16 +319,14 @@
   async function load_rec(opt_id) {
     // log("Loading", title);
     const res = await fetch(url_sum + encodeURIComponent(opt_id));
-    const rec = await res.json();
-    // log("Loaded", title, "=>", rec.title);
-    return rec;
+    return await res.json();
   }
 
   const url_thumb_default = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/225px-Wikipedia-logo-v2.svg.png";
 
-  $jl_inp.render_item_content = ($li, opt_id) => {
+  $inp1.render_item_content = ($li, opt_id) => {
     const rec_p = recs.get(opt_id);
-    const title = $jl_inp.format(opt_id);
+    const title = $inp1.format(opt_id);
 
     const $img = document.createElement("img");
     const $title = document.createElement("b");
@@ -349,14 +349,14 @@
     })
   }
 
-  $jl_inp.to_query = text => $jl_inp.parse(text).toLowerCase();
+  $inp1.to_query = text => $inp1.parse(text).toLowerCase();
 
   // Keeping trailing space allows search for word break
-  $jl_inp.parse = text => text.trimStart().replaceAll(/\s+/g, "_");
+  $inp1.parse = text => text.trimStart().replaceAll(/\s+/g, "_");
 
-  $jl_inp.format = opt_id => opt_id.replaceAll("_", " ");
+  $inp1.format = opt_id => opt_id.replaceAll("_", " ");
 
-  $jl_inp.addEventListener("change", async ev => {
+  $inp1.addEventListener("change", async ev => {
     // const opt_id = $jl_inp.value;
     const opt_id = ev.target.value;
     // log("handling change event");
@@ -409,21 +409,22 @@
 
 <nav class="theme-switch symbol"></nav>
 <script>
+  const $doc = document.documentElement;
   const mql_dark = window.matchMedia('(prefers-color-scheme: dark)');
   if (localStorage.theme)
-    document.documentElement.dataset.theme = localStorage.theme;
+    $doc.dataset.theme = localStorage.theme;
   else if (mql_dark.matches)
-    document.documentElement.dataset.theme = "dark";
+    $doc.dataset.theme = "dark";
 
   mql_dark.addEventListener('change',
     ev => {
       if (localStorage.theme) return; // keep overrid
       const theme = mql_dark.matches ? "dark" : "light";
-      document.documentElement.dataset.theme = theme;
+      $doc.dataset.theme = theme;
     }
   )
   document.querySelector(".theme-switch").onclick = () => {
-    const theme_cur = document.documentElement.dataset.theme;
+    const theme_cur = $doc.dataset.theme;
     const theme_def = mql_dark.matches ? "dark" : "light";
     const theme_new = theme_cur === "dark" ? "light" : "dark";
 
@@ -432,7 +433,7 @@
     else
       localStorage.theme = theme_new;
 
-    document.documentElement.dataset.theme = theme_new;
+    $doc.dataset.theme = theme_new;
   }
 </script>
 <style>
@@ -562,7 +563,7 @@
   <jl-search init>
     <fieldset>
       <span class="symbol">dictionary</span>
-      <input id="field1" autofocus placeholder="wikipedia articles" />
+      <input id="field1" placeholder="wikipedia articles" />
       <span class="state symbol"></span>
     </fieldset>
     <nav>
@@ -577,6 +578,7 @@
 
   <!-- <label for="name">Name</label>
   <input name="name"> -->
+
 </form>
 
 <article hidden>

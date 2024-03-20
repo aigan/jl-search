@@ -1,342 +1,315 @@
-import { html, LitElement, css } from 'https://para.se/2024/x/lit.mjs';
+import { html, css, LitElement } from "https://para.se/2024/x/lit.mjs";
 import { classMap } from 'https://para.se/2024/x/lit/directives/class-map.mjs';
+import { JlSearch, load_caps } from "../../jl-search.mjs";
 
+// eslint-disable-next-line no-unused-vars
 const log = console.log.bind(console);
 
-let ready_shared = load_conditional_dependencies();
-ready_shared.then(() => {
-  log("loaded font", document.fonts.check("1em Material Symbols Outlined"))
-}).catch(err=>console.error(err));
+const LOADING = {};
+const symbol_font_url = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=block";
+const symbol_font_promise = import_cssP(symbol_font_url);
+
+const $doc = document.documentElement;
+
+const url_search = "https://wiki.para.se:9071/s/";
 
 
-const style_local = css`
+
+const field_style = css`
+
 :host {
   display: inline-block;
 
-  --padding: .5rem;
-  --shadow: lch(0 0 0 / 0.05);
-  --focus: lch(40 95 301);
-  --field-bg: white;
-  --disabled: lch(35 0 296);
-  --border-width: .15rem;
-  --border-radius: .35rem;
-  --ring-unselected: 0 0 0 var(--border-width) var(--shadow);
-  --ring-focus: 0 0 0 var(--border-width) var(--focus);
+    --padding: .75em;
+    --lineheight: 1.5;
+    --disabled-opacity: .38;
+    --font-family: sans-serif;
+    --border-radius: .25rem;
+    --border-width: .15rem;
+    --border-width-focus: .1875rem;
+    --outline-color: var(--c-outline, gray);
+    --input-bg: var(--c-surface-bright);
+    --input-ink: var(--c-on-surface);
+    --selected-bg: var(--c-tertiary-container);
+    --selected-ink: var(--c-on-tertiary-container);
+    --hover-color: var(--c-on-surface, black);
+    --focus-color: var(--c-primary, green);
+    --focus-bg: var(--c-surface-dim, lightgray);
+    --highlight-bg: var(--c-secondary-container);
+    --active-color: var(--c-tertiary-container, orange);
+    --disabled-color: var(--c-outline-a33, silver);
+    --error-ink: var(--c-error, red);
+    --error-container-bg: var(--c-error-container);
+    --error-container-ink: var(--c-on-error-container);
+  }
 
-  font-family: var(--font-family, sans-serif);
+jl-search {
+  --hr-color: var(--c-surface-dim, silver);
+  --shadow-color: var(--c-shadow, black);
+  --input-height: calc(var(--lineheight) * 1em + 2 * var(--padding));
 
-    /* color: red; */
+  width: 100%;
+
 }
 
 
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  /* -webkit-font-feature-settings: 'liga'; */
-  -webkit-font-smoothing: antialiased;
+/* Avoid FOUC while main style loads */
+jl-search[init] {
+  height: var(--input-height);
 }
 
-.material-symbols-outlined {
-  font-size: inherit;
+jl-search[init]>* {
+  display: none;
 }
 
 
-input {
-  padding: 0;
-  margin: 0;
-  border: none;
-  outline: none;
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  background-color: transparent;
-}
+@keyframes fade_in {
+    0% {
+      opacity: 0
+    }
 
-input:focus, input:focus-within {
-  outline: none;
-  border: none;
-}
+    100% {
+      opacity: 1
+    }
+  }
 
-label[for=input1]{
-  display: inline-block;
-  padding-bottom:.3rem;
-  padding-left: var(--padding);
-  /* border: thick solid red; */
-}
+  jl-search ul>li {
+    display: grid;
+    grid-template-columns: 15% auto;
+    column-gap: var(--padding);
+  }
 
-.input-group {
-  box-shadow: var(--ring-unselected);
-  display: flex;
-  align-items: center;
-  gap: var(--padding);
+  ul>li>p {
+    font-size: .8em;
+    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    animation: fade_in 1s linear forwards;
+  }
 
-  border-radius: var(--border-radius);
-  padding: var(--padding);
-  background: var(--field-bg);
-  transition: box-shadow .2s;
-}
+  ul>li>img {
+    object-fit: cover;
+    /* Center top works much better than golden ratio for most wikipedia image
+    thumbs */
+    object-position: center top;
+    grid-row: span 2;
+    width: 100%;
+    flex: 0 0 auto;
+    aspect-ratio: 1 / 1;
+    outline: thin solid var(--outline-color);
+    transition: filter 1s, opacity 1s;
+  }
 
-.input-group:focus-within {
-  box-shadow: var(--ring-focus);
-  /* background: color-mix(in lch, currentcolor, black); */
-}
-
-.input-group:has(input:disabled){
-  --faded: color-mix(in lch, currentcolor, 60% white );
-  color: var(--faded, silver);
-}
-
-/* .input-group > * {
-  padding: var(--padding);
-} */
-
-.state-loading {
-  animation: spin 2s infinite linear;
-}
-
-
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(359deg); }}
+  ul>li>img.default {
+    filter: blur(2px);
+    opacity: .3;
+    outline: none;
+  }
 
 `;
 
+const symbol_style = css`
+  .symbol {
+    font-family: 'Material Symbols Outlined';
+    line-height: 1;
+    display: inline-block;
+    width: 1em;
+    overflow: hidden;
+    transition: opacity 1.5s;
+  }
 
-const glyphs = {
-  spinner: "\uD83D\uDCC0",
-  warning: "\u26A0",
+  jl-search:not(.loaded-symbols) .symbol {
+    opacity: 0;
+  }
+
+jl-search>fieldset .symbol {
+  font-size: 1.5em;
+  /* max set to line-height to not increase total */
+  user-select: none;
+  padding: calc(var(--_padding) - .25em);
+}
+`;
+
+
+class JlSearchWiki extends JlSearch {
+  async search({ query }) {
+    const query_out = encodeURIComponent(query);
+    const res = await fetch(url_search + query_out);
+    const json = await res.json();
+    return json;
+  }
+
+  static states = {
+    closed: ['expand_more', "Expand"],
+    opened: ['expand_less', "Collapse"],
+    loading: [JlSearchWiki.spinner, "Loading"],
+    error: ["sentiment_very_dissatisfied", JlSearchWiki.prototype.error_reason],
+  }
+
+  static recs = new Map();
+
+  async prepare_options(q_res) {
+    const found = q_res.found;
+    const max = Math.min(found.length, this._page_size);
+    const recs_p = [];
+    for (let i = 0; i < max; i++) {
+      const opt_id = found[i];
+      recs_p.push(this.get_rec(opt_id));
+    }
+  }
+
+  get_rec(opt_id) {
+    const recs = this.constructor.recs;
+    if (recs.has(opt_id)) return recs.get(opt_id);
+    const promise = this.load_rec(opt_id);
+    recs.set(opt_id, promise);
+    return promise;
+  }
+
+  async load_rec(opt_id) {
+    const res = await fetch(
+      "https://en.wikipedia.org/api/rest_v1/page/summary/"
+      + encodeURIComponent(opt_id)
+    );
+    return await res.json();
+  }
+
+  render_item_content($li, opt_id){
+    const recs = this.constructor.recs;
+    const rec_p = recs.get(opt_id);
+    const title = this.format(opt_id);
+
+    const $img = document.createElement("img");
+    const $title = document.createElement("b");
+    const $desc = document.createElement("p");
+
+    $img.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/225px-Wikipedia-logo-v2.svg.png";
+    $img.classList.add("default");
+    $title.innerText = title;
+
+    $li.replaceChildren($img, $title, $desc);
+
+    rec_p.then(rec => {
+      $desc.innerText = rec.description ?? "";
+      if (rec.thumbnail) {
+        $img.src = rec.thumbnail.source;
+        $img.classList.remove("default");
+      }
+    }).catch(err => {
+      console.warn("Failed to get", opt_id, err);
+    })
+  }
+
+  to_query(text) { return this.parse(text).toLowerCase() }
+
+  // Keeping trailing space allows search for word break
+  parse(text) { return text.trimStart().replaceAll(/\s+/g, "_") }
+
+  format(opt_id) { return opt_id.replaceAll("_", " ") }
+
+
 }
 
+
+load_caps();
+customElements.define(JlSearchWiki.is, JlSearchWiki);
+
+
+// Could use adoptedStyleSheets but not sure about if anchor_positioning
+// polyfill can handle it.
+const { pathname } = new URL(import.meta.url);
+const style_base = pathname.split('/').slice(0, -3).join('/');
 
 class El extends LitElement {
-  static is = "jl-search"
 
-  render() { return this.h_nonfloating() }
+  static is = "jl-search-wiki";
 
-	static states = {
-		loading:  ['spinner',"Loading value"],
-		flux:     ['warning', El.prototype.flux_reason],
-		invalid:  ['exclamation-circle', El.prototype.invalid_reason],
-		error:    ['frown-o', El.prototype.error_reason],
-		normal:   ['circle-thin', ""],
-		changed:  ['bell', El.prototype.changed_reason],
-		updating: ['asterisk',"Data unsaved"],
-		repairing:['wrench',"Correcting data format"],
-		saving:   ['cloud-upload',"Saving"],
-		saved:    ['check', "Saved"],
-	};
+  static styles = [field_style, symbol_style];
 
   static properties = {
-    prefix: String,
-    label: String,
-    default_value: String,
-    lock: { type: Boolean },
+    loaded_symbols: { type: Boolean },
   }
 
-  static styles = style_local;
+  constructor() {
+    super();
+    this.loaded_symbols = false;
+    this.setup_symbols();
+  }
 
-  h_nonfloating() {
-    const gel = this;
-    const txt_placeholder = gel.placeholder || gel.label;
-    const classes = {
-      "has-validation": true,
-      punish: gel.was_invalid,
-      reward: gel.show_validity,
-      flux: gel.state === 'flux'
+  render() {
+    const main_class = { 'loaded-symbols': this.loaded_symbols };
+
+    return html`
+<link rel="stylesheet"
+  @load=${this.on_style} 
+  href="${style_base}/jl-search.css"
+>
+<jl-search init class=${classMap(main_class)}>
+<fieldset>
+  <span class="symbol">dictionary</span>
+  <input placeholder="wikipedia articles">
+  <span class="state symbol"></span>
+</fieldset>
+<nav>
+  <section>
+    <hr>
+    <ul></ul>
+    <hr>
+    <footer></footer>
+  </section>
+</nav>
+</jl-search>
+      `;
+  }
+
+  $$(selector) {
+    return this.shadowRoot?.querySelector(selector);
+  }
+
+  async setup_symbols() {
+    await symbol_font_promise;
+    // await import_cssP(symbol_font_url);
+    await document.fonts.load("1em Material Symbols Outlined");
+    // this.$$("jl-search").classList.add('loaded-symbols');
+    this.loaded_symbols = true;
+  }
+
+  static style_var_default = {
+    "--jl-search_move-speed": "0.25s",
+  }
+
+  on_style() {
+    // Some variables has to be placed in :root
+    const root_style_computed = getComputedStyle($doc);
+    const cls = this.constructor;
+    for (const css_var of Object.keys(cls.style_var_default)) {
+      if (root_style_computed.getPropertyValue(css_var).length) continue;
+      const val = cls.style_var_default[css_var];
+      // log("Set dot style", css_var, val);
+      $doc.style.setProperty(css_var, val);
     }
-    return html`
-
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-
-<div class=${classMap(classes)}>
-  ${gel.h_label()}
-  <label class="input-group">
-    ${gel.h_prefix()}
-    ${gel.h_input()}
-    ${gel.h_state()}
-  </label>
-  ${gel.h_suggestions() }
-  ${gel.h_feedback()}
-</div>
-`;
   }
-
-  h_input() {
-    const gel = this;
-    return html`<input
-  type="text"
-  id="input1"
-  ?required=${gel.required}
-  placeholder=${gel.placeholder || ""}
-  maxlength=${gel.maxlength || ""}
-  ?disabled=${gel.lock}
-  value=${gel.default_value}
- >`;
-  }
-
-  h_prefix() {
-		if (!this.prefix) return;
-		return html`<span id="prefix">${this.prefix}</span>`;
- 	}
-  
-  h_label() { 
-    const gel = this;
-		if( !gel.label ) return;
-		return html`<label for="input1">${gel.label}${gel.h_tip()}</label>`;
-
-  }
-
-  h_tip()
-	{
-		const gel = this;
-		if( !gel.tip ) return; //# No falsy tips
-		return html` <i class="help_item fa fa-question-circle" title=${gel.tip} />`;
-	}
-
-
-	h_state(){
-		const gel = this;
-		if( gel.nobox ) return;
-		const icon = El.states[gel.state||'loading'][0];
-
-    return html`
-      <span class="material-symbols-outlined">error</span>
-
-      <span class="state-loading">${glyphs.spinner}</span>
-    `;
-
-    
-    
-    return html`
-<span
-  id="state"
-  class="input-group-text"
-  role="button"
-  @tap=${() => gel.revert()} 
-  title="Revert to latest version"
-  > 
-	<span class="fa-stack fa-fw">
-		<i class="fa fa-refresh fa-stack-1x secondary" />
-		<i class="fa fa-${icon} fa-stack-1x primary" />
-	</span>
-</span>`;
-  }
-  
-  h_suggestions() { 
-    return html`<ul popover></ul>`;
-  }
-
-  h_feedback() {
-    const gel = this;
-    //# The warning could be a more recent and specific indication of
-    //# the problem
-    const feedback_invalid = gel.warning || gel.state_error;
-    if (feedback_invalid) return gel.h_error(feedback_invalid);
-    return gel.h_valid(gel.feedback);
-  }
-
-  h_error(feedback = "") {
-		const gel = this;
-		//# Bootstrap needs the div, even if empty
-		return html`<div class="invalid-feedback d-block">${ feedback }</div>`;
-	}
-	
-	h_valid( feedback="" ){
-		//# Bootstrap needs the div, even if empty
-		//# Implement for extra stuff
-		return html`<div class="valid-feedback d-block">${feedback}</div>`;
-	}
-
-  // connectedCallback() { 
-  //   super.connectedCallback();
-  //   log('connect', document.head);
-  //   load_fonts();
-  // }
-
-  async scheduleUpdate() {
-    await ready_shared;
-    super.scheduleUpdate();
-  }
-
 
 }
+
+export function import_cssP(url, type) {
+  if (LOADING[url]) return LOADING[url];
+
+  if (url.match(/^\./)) {
+    throw new Error(`Importing relative url ${url}\nYou are likely to be eaten by a grue`);
+  }
+
+  return LOADING[url] = new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.setAttribute('href', url);
+
+    link.onload = () => resolve(link);
+    link.onerror = err => reject(err);
+
+    document.head.appendChild(link);
+  })
+}
+
 customElements.define(El.is, El);
-
-function load_conditional_dependencies() { 
-  return load_fonts1()
-}
-
-function load_fonts() { 
-  const font = new FontFace(
-    "Material Symbols Outlined",
-    "url(https://fonts.gstatic.com/s/materialsymbolsoutlined/v161/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzazHD_dY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOej.woff2)"
-  );
-  document.fonts.add(font);
-  return font.load();
-}
-
-function load_fonts1() { 
-  const symbols_style_url = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1";
-  const found = document.querySelector(`link[href="${symbols_style_url}"]`);
-  if (found) return Promise.resolve();
-
-  return new Promise((resolve, reject) =>{
-    const $link = document.createElement('link');
-    $link.setAttribute('rel', 'stylesheet');
-    $link.setAttribute('href', symbols_style_url);
-    $link.onload = () => {
-      log('loaded link');
-      document.fonts.load("1em Material Symbols Outlined").then(resolve,reject);
-    }
-    $link.onerror = err => reject(Error(`Failed loading stylesheet ${symbols_style_url}`))
-
-    document.head.appendChild($link);
-  });
-}
-
-/*
-Resources
-https://open-props.style/
-https://getbootstrap.com/docs/5.3/forms/form-control/
-https://tailwindui.com/components/application-ui/forms/input-groups
-https://material-components.github.io/material-components-web-catalog/#/component/text-field
-https://fonts.google.com/icons
-https://fonts.google.com/noto/specimen/Noto+Emoji?query=noto+emoji
-
-
-
-## Align unicode or svg with material symbols
-width: 1em;
-height: 1em;
-display: flex;
-justify-content: center;
-align-items: center;
-
-## Special adjustment for wider characters
-width: 1.25em;
-height: 1.25em;
-font-size:.8em;
-
-
-## Global spinner
-const spinner = document.createElement('div');
-spinner.id = "spinner";
-spinner.className = "fadeOut";
-const spinglyph = document.createElement('img');
-spinglyph.src = "/fonts/noto-emoji/emoji_u1f4c0.svg";
-spinner.jobcount = 0;
-spinner.appendChild(spinglyph);
-document.body.appendChild( spinner );
-spinner.startGlobal = ()=>{ spinner.jobcount++; spinner.classList.remove('fadeOut') }
-spinner.stopGlobal = ()=>{ if( --spinner.jobcount < 1 ) spinner.classList.add('fadeOut') }
-spinner.offsetWidth; // Force reflow
-setTimeout(spinner.startGlobal);
-
-*/
