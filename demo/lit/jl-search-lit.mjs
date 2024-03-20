@@ -46,7 +46,6 @@ const field_style = css`
 jl-search {
   --hr-color: var(--c-surface-dim, silver);
   --shadow-color: var(--c-shadow, black);
-  --input-height: calc(var(--lineheight) * 1em + 2 * var(--padding));
 
   width: 100%;
 

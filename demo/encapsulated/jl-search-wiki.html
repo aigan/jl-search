@@ -1,0 +1,210 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+
+<script type="module">
+  import "./jl-search-wiki.mjs";
+
+  // eslint-disable-next-line no-unused-vars
+  const log = console.log.bind(console);
+  const $$ = document.querySelector.bind(document);
+
+  // May be necessary to wait on element upgrade
+  // await customElements.whenDefined("jl-search");
+
+  const $inp1 = $$("[for=field1] + jl-search");
+  // log("attatching search", $jl_inp._id);
+  const $delay = $$("#delay");
+
+  $delay.oninput = () => localStorage.use_delay = $delay.checked;
+  $delay.checked = localStorage.use_delay === "true";
+
+  const $anim = $$("#anim");
+  $anim.oninput = () => {
+    localStorage.more_anim = $anim.checked;
+    $inp1.toggleAttribute("more-anim", $anim.checked);
+  }
+  $anim.checked = localStorage.more_anim === "true";
+  $inp1.toggleAttribute("more-anim", $anim.checked);
+
+  const $ac = $$("#autocomplete");
+  $ac.oninput = () => {
+    localStorage.autocomplete = $ac.checked;
+    $inp1.toggleAttribute("autocomplete", $ac.checked);
+  }
+  $ac.checked = localStorage.autocomplete === "true";
+  $inp1.toggleAttribute("autocomplete", $ac.checked);
+
+  $inp1.addEventListener("change", async ev => {
+    // const opt_id = $jl_inp.value;
+    const opt_id = ev.target.value;
+    // log("handling change event");
+    const $art = $$("article");
+
+    // Skip fadeout if this is the first article shown
+    const fade_out = $art.hidden
+      ? Promise.resolve()
+      : $art.animate([{ opacity: 1 }, { opacity: 0 }], 500);
+
+    const rec = await $inp1.get_rec(opt_id);
+
+    // Start loading image while fadeout animates
+    const $img = document.createElement("img");
+    const img_loaded = new Promise((resolve, reject) => {
+      if (!rec.thumbnail) return resolve();
+      $img.src = rec.thumbnail.source;
+      $img.onload = resolve;
+      $img.onerror = reject;
+    });
+
+    await fade_out.finished;
+    $art.style.opacity = 0;
+
+    $art.hidden = false;
+    $$("article figure").hidden = !rec.thumbnail;
+    $$("article img").replaceWith($img);
+    $$("article h1").innerHTML = rec.titles.display;
+    $$("article summary").innerHTML = rec.extract_html;
+    $$("article figcaption").innerHTML = rec.description ?? "";
+    $$("article > a").href = rec.content_urls.desktop.page;
+
+    await img_loaded; // start fade in after image loaded
+    const fade_in = $art.animate([{ opacity: 0 }, { opacity: 1 }], 500);
+    await fade_in.finished;
+    $art.style.opacity = 1;
+  });
+
+  $$("form").onsubmit = () => false;
+
+</script>
+<style>
+  :root {
+    --font-family: sans-serif;
+    --lineheight: 1.5;
+    --padding: .75em;
+    --border-width: .125rem;
+    --border-width-focus: .25rem;
+    --focus-color: #347f53;
+    --jl-search_move-speed: .25s;
+  }
+
+  body {
+    margin: 1rem 3rem;
+    font-family: var(--font-family);
+    line-height: var(--lineheight);
+  }
+
+  @media (max-width: 600px) {
+    body {
+      margin: 1rem;
+    }
+  }
+
+  label[for] {
+    padding: var(--padding) 0;
+    white-space: nowrap;
+  }
+
+  label[for]:has(+jl-search input:disabled) {
+    opacity: var(--disabled-opacity);
+  }
+
+  form {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--padding);
+    /* max-width: 80vw; */
+  }
+
+  form>div {
+    display: flex;
+    align-items: center;
+  }
+
+  article {
+    view-transition-name: article;
+  }
+
+  figure {
+    float: left;
+    margin: 0 1em 0 0;
+    padding: 1em;
+    border: var(--border-width) color-mix(in oklch, var(--outline-color), transparent 80%) solid;
+    width: min-content;
+    display: none;
+    background: var(--c-surface-container-highest);
+  }
+
+  figure:has(img[src]) {
+    display: block;
+    box-sizing: border-box;
+  }
+
+  figcaption {
+    text-align: center;
+    font-size: .8em;
+  }
+
+  article>a {
+    font-size: 1.5em;
+    float: right;
+  }
+
+  article>a::after {
+    content: "arrow_forward";
+    font-family: 'Material Symbols Outlined';
+    vertical-align: bottom;
+  }
+
+  @media (max-width: 40rem) {
+    figure {
+      float: none;
+      margin: 1em 0;
+      width: 100%;
+    }
+
+    article img {
+      width: 100%;
+    }
+  }
+</style>
+
+
+<form>
+  <label for="delay">Slow down</label>
+  <div>
+    <input id="delay" type="checkbox">
+    <span>Simulate slower server responses</span>
+  </div>
+
+  <label for="anim">Animate</label>
+  <div>
+    <input id="anim" type="checkbox">
+    <span>Even more unecessary animations</span>
+  </div>
+
+  <label for="autocomplete">Autocomplete</label>
+  <div>
+    <input id="autocomplete" type="checkbox">
+    <span>Suggests text completion inside input field</span>
+  </div>
+
+  <label for="field1">Search</label>
+  <jl-search id="field1"></jl-search>
+
+  <!-- <label for="name">Name</label>
+  <input id="name"> -->
+
+</form>
+
+<article hidden>
+  <figure>
+    <img>
+    <figcaption></figcaption>
+  </figure>
+  <h1></h1>
+  <summary></summary>
+  <a>read more</a>
+</article>

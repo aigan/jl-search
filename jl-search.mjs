@@ -15,6 +15,9 @@ class El extends HTMLElement {
 
   static is = "jl-search";
 
+  static observedAttributes = ["opened"];
+
+
   _id = ++element_id;
   // _caps = caps; // Expose capability promises
 
@@ -94,7 +97,7 @@ class El extends HTMLElement {
     }
 
     // Auto-setup elements if they exist
-    if (!$el._ready && $el.querySelector("fieldset")) $el.setup_dom();
+    if (!$el._ready && $el.$$("fieldset")) $el.setup_dom();
   }
 
 
@@ -114,11 +117,11 @@ class El extends HTMLElement {
     $el._ready = true;
 
     // Not handling DOM mutations in this implementation
-    $el._$inp = $el.querySelector("input");
-    $el._$opts = $el.querySelector("nav");
-    $el._$field = $el.querySelector("fieldset");
-    $el._$feedback = $el.querySelector("nav footer");
-    $el._$state = $el.querySelector(".state");
+    $el._$inp = $el.$$("input");
+    $el._$opts = $el.$$("nav");
+    $el._$field = $el.$$("fieldset");
+    $el._$feedback = $el.$$("nav footer");
+    $el._$state = $el.$$(".state");
 
 
     // TODO: react on replaced input or input attributes. Remember our own
@@ -166,17 +169,18 @@ class El extends HTMLElement {
       }
 
       const raf = () => {
-        if (!run) return;
         if (
-          $field.offsetTop === y &&
-          $field.offsetLeft === x &&
+          (window.scrollY + $field.offsetTop) === y &&
+          (window.scrollX + $field.offsetLeft) === x &&
           $field.offsetWidth === w &&
           $field.offsetHeight === h
         ) return requestAnimationFrame(raf);
 
+        if (!run) return;
+
         // log("field position changed");
-        x = $field.offsetLeft;
-        y = $field.offsetTop;
+        x = window.scrollX + $field.offsetLeft;
+        y = window.scrollY + $field.offsetTop;
         w = $field.offsetWidth;
         h = $field.offsetHeight;
         $el.render_position_below($el._$opts, $field);
@@ -245,7 +249,9 @@ class El extends HTMLElement {
 
     const on_transitionend = ev => {
       if (ev.target !== $opts) return; // Ignore transition from children
-
+      if (ev.propertyName === "box-shadow") return;
+      // log("transition", ev);
+      
       if ($el.dataset.anim === "opening") {
         // log("transitioned to opened");
         if (!open_promise) return;
@@ -357,7 +363,7 @@ class El extends HTMLElement {
     // await $el.regain_focus(); // only conditionally
     if (!navigator.userActivation.hasBeenActive) $el.input_select();
 
-    log($el.input_debug($inp.value, 0, $inp.value.length, "first_input"))
+    // log($el.input_debug($inp.value, 0, $inp.value.length, "first_input"))
 
     $el.update_state();
     $el._input_ready = true;
@@ -370,6 +376,28 @@ class El extends HTMLElement {
 
   // =====  EVENTS  =====
 
+
+  attributeChangedCallback(name, val_old, val_new) {
+    // log("attribute changed", name, `"${val_old}" => "${val_new}"`);
+    if (name === "opened") return void this.changed_opened(val_new);
+  }
+
+  changed_opened(val_new) { 
+    const $el = this;
+    const anim = $el.dataset.anim;
+    const opened = (val_new != null);
+    if (!opened && anim === "closing") return;
+    if (opened && anim === "opening") return;
+
+    // Actuate according to current attribute
+    if (opened) {
+      $el.dataset.anim = "opening";
+      $el.show_options();
+    } else { 
+      $el.dataset.anim = "closing";
+      $el.hide_options();
+    }
+  }
 
   async on_state_click(ev) {
     const $el = this;
@@ -419,7 +447,7 @@ class El extends HTMLElement {
     if ($el.has_focus) return;
     if ($el._mouse_inside) return;
 
-    // log("focusout -> hide");
+    log("focusout -> hide");
     $el.hide_options();
   }
 
@@ -437,7 +465,7 @@ class El extends HTMLElement {
     const txt = $inp.value;
     const pos1 = $inp.selectionStart;
     const pos2 = $inp.selectionEnd;
-    log(ev.inputType, `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+    // log(ev.inputType, `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
 
     switch (ev.inputType) {
       case "insertText":
@@ -593,7 +621,7 @@ class El extends HTMLElement {
 
 
   on_keydown(ev) {
-    log("on_keydown", ev.key);
+    // log("on_keydown", ev.key);
 
     switch (ev.key) {
       case "Process": return;
@@ -627,8 +655,8 @@ class El extends HTMLElement {
     if (($el._pos1 === pos1) && ($el._pos2 === pos2)) return;
 
     const txt = $inp.value;
-    log("on_select" + ($el._pos_persist ? " PERSIST" : ""),
-      `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+    // log("on_select" + ($el._pos_persist ? " PERSIST" : ""),
+    //   `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
 
 
     // Workaround for browsers some times losing the selected text.
@@ -699,7 +727,7 @@ class El extends HTMLElement {
     if (pos1 === 0 && pos2 === $inp.value.length) return void $el.revert();
 
     $el.input_select();
-    log($el.input_debug($inp.value, 0, $inp.value.length, "escape"));
+    // log($el.input_debug($inp.value, 0, $inp.value.length, "escape"));
   }
 
 
@@ -781,7 +809,7 @@ class El extends HTMLElement {
     const $el = this;
     $el._$inp.value = text;
     $el.input_select(pos1, pos2);
-    log($el.input_debug(text, pos1, pos2, reason));
+    // log($el.input_debug(text, pos1, pos2, reason));
   }
 
 
@@ -789,6 +817,12 @@ class El extends HTMLElement {
 
 
   // =====  GETTERS =====
+
+
+  // Override for using shadowroot if that is used
+  $$(selector) { 
+    return this.querySelector(selector);
+  }
 
 
   // Convert Search text to normalized query that will be memoized
@@ -846,7 +880,7 @@ class El extends HTMLElement {
 
 
   get has_focus() {
-    return this.getRootNode().activeElement === this._$inp;
+    return this._$inp.getRootNode().activeElement === this._$inp;
   }
 
 
@@ -978,7 +1012,7 @@ class El extends HTMLElement {
 
   select_option(opt_id) {
     const $el = this;
-    // log("selected", id);
+    //log("selected", opt_id);
     $el.visited_add(opt_id);
 
     // Could do an animation of text going to input field
@@ -1014,7 +1048,7 @@ class El extends HTMLElement {
 
   highlight_option(opt_id) {
     const $el = this;
-    log("Highlight", opt_id);
+    // log("Highlight", opt_id);
     $el._highlighted_option = opt_id;
     $el.render_highlight(opt_id);
   }
@@ -1025,6 +1059,7 @@ class El extends HTMLElement {
     const $el = this;
     // console.warn("opening");
 
+    // return if already opened and not about to change
     if ($el.hasAttribute("opened") && !$el.dataset.anim) return;
 
     // The process can change direction at any time
@@ -1050,7 +1085,8 @@ class El extends HTMLElement {
       $el.render_position_below($el._$opts, $el._$field);
       $el._ev.field_raf_start();
     }
-
+    // log("show_options done");
+  
   }
 
 
@@ -1081,6 +1117,7 @@ class El extends HTMLElement {
     const $el = this;
     // log("closing");
 
+    // Return if already closed and not about to change
     if (!$el.hasAttribute("opened") && !$el.dataset.anim) return;
 
     // The process can change direction at any time
@@ -1091,7 +1128,6 @@ class El extends HTMLElement {
 
     if ($el.dataset.anim !== "closing") return;
     $el._$opts.hidePopover();
-    delete $el.dataset.anim;
 
     if (caps.missing.anchor_positioning) {
       $el._ev.field_raf_stop();
@@ -1099,6 +1135,7 @@ class El extends HTMLElement {
 
     // log("hide_options set closed");
     await $el.toggle_options(false);
+    delete $el.dataset.anim;
 
     // log("hide_options done");
   }
@@ -1109,7 +1146,7 @@ class El extends HTMLElement {
     const $el = this;
     // Restore original value. For now, same as removing value
     $el._$inp.value = "";
-    log(`»« reverted`)
+    // log(`»« reverted`)
     $el.handle_search_input("");
   }
 
@@ -1329,7 +1366,7 @@ class El extends HTMLElement {
     }
 
     const req_id = ++$el._req_id;
-    log(`${req_id} ⮞ »${query}« search`);
+    // log(`${req_id} ⮞ »${query}« search`);
     if (!query.length) return $el.set_options_from_visited(req_id);
 
     const promise = $el.get_result_promise(query, req_id);
@@ -1499,6 +1536,7 @@ class El extends HTMLElement {
     const $el = this;
 
     if (!$el._do_autocomplete) return;
+    if (!$el.hasAttribute("autocomplete")) return;
     $el._do_autocomplete = false;
 
     if ($el._query !== res.query) return;
@@ -1625,7 +1663,7 @@ class El extends HTMLElement {
     const removed = [];
     const highlight = res.highlight;
 
-    const $ul = $el.querySelector("ul");
+    const $ul = $el.$$("ul");
     const children = [...$ul.children]
       .filter($li => (!$li.classList.contains('exit')));
     let i = 0;
@@ -1762,8 +1800,8 @@ class El extends HTMLElement {
     const t_style = $target.style;
     // log("Position anchor to", { width, bottom, left });
     t_style.width = width + "px";
-    t_style.top = bottom + "px";
-    t_style.left = left + "px";
+    t_style.top = (window.scrollY + bottom) + "px";
+    t_style.left = (window.scrollX + left) + "px";
 
   }
 

@@ -6,50 +6,7 @@
 
 
 
-<!-- Telemetry -->
-
-<script>
-  
-  // window._logging = [];
-  // const console_default = {};
-  // for (const channel of ["log", "warn", "error"]) {
-  //   console_default[channel] = console[channel].bind(console);
-  //   console[channel] = (...args) => track(channel, args);
-  // }
-
-  // window.onerror = (message, source, lineno, colno, error) => {
-  //   if (!error) {
-  //     error = Error(message);
-  //     Object.assign(error, { source, lineno, colno });
-  //   }
-  //   track("error", [error]);
-  //   return true;
-  // }
-
-  // window.addEventListener("unhandledrejection", ev => {
-  //   track("unhandledrejection", [ev.reason]);
-  //   ev.preventDefault();
-  // })
-
-  // function track(channel, args) {
-  //   if (console_default[channel]) console_default[channel].apply(console, args);
-  //   // console.debug(channel, Date.now(), ...args);
-  //   window._logging.push([channel, Date.now(), ...args]);
-  // }
-
-  // window.addEventListener('load',
-  //   () => console.log("Start tracking", window._logging),
-  //   { once: true }
-  // );
-
-</script>
-
-
-
-
-
-
-<!-- Main theme -->
+<!-- =====  Main theme  ===== -->
 
 <link rel="stylesheet" href="./theme.css" />
 <style>
@@ -62,7 +19,9 @@
     --font-family: sans-serif;
     --border-radius: .25rem;
     --border-width: .125rem;
+    /* 2px */
     --border-width-focus: .1875rem;
+    /* 3px */
     --outline-color: var(--c-outline, gray);
     --input-bg: var(--c-surface-bright);
     --input-ink: var(--c-on-surface);
@@ -180,7 +139,6 @@
   jl-search {
     --hr-color: var(--c-surface-dim, silver);
     --shadow-color: var(--c-shadow, black);
-    --input-height: calc(var(--lineheight) * 1em + 2 * var(--padding));
     max-width: 25em;
   }
 
@@ -239,24 +197,27 @@
   }
 </style>
 <script type="module">
-  import {init} from "../../jl-search.mjs";
+  import { init } from "../../jl-search.mjs";
   init();
 
   // eslint-disable-next-line no-unused-vars
   const log = console.log.bind(console);
+  const $$ = document.querySelector.bind(document);
+
   // May be necessary to wait on element upgrade
   // await customElements.whenDefined("jl-search");
 
-  const $inp1 = document.querySelector("[for=field1] + jl-search");
+  const $inp1 = $$("[for=field1] + jl-search");
   // log("attatching search", $jl_inp._id);
-  const $delay = document.querySelector("#delay");
+  const $delay = $$("#delay");
+
   const url_search = "https://wiki.para.se:9071/s/";
 
   $inp1.search = async function search({ query }) {
-    if (query === "i am lying") throw Error("BOOM");
+    if (query === "i_am_lying") throw Error("BOOM");
 
     const query_out = encodeURIComponent(query);
-    let opts = "?" + ($delay.checked ? "delay=300" : "");
+    let opts = "?" + ($delay.checked ? "delay=450" : "");
     const res = await fetch(url_search + query_out + opts);
     const json = await res.json();
     return json;
@@ -265,13 +226,22 @@
   $delay.oninput = () => localStorage.use_delay = $delay.checked;
   $delay.checked = localStorage.use_delay === "true";
 
-  const $anim = document.querySelector("#anim");
+  const $anim = $$("#anim");
   $anim.oninput = () => {
     localStorage.more_anim = $anim.checked;
     $inp1.toggleAttribute("more-anim", $anim.checked);
   }
   $anim.checked = localStorage.more_anim === "true";
   $inp1.toggleAttribute("more-anim", $anim.checked);
+
+  const $ac = $$("#autocomplete");
+  $ac.oninput = () => {
+    localStorage.autocomplete = $ac.checked;
+    $inp1.toggleAttribute("autocomplete", $ac.checked);
+  }
+  $ac.checked = localStorage.autocomplete === "true";
+  $inp1.toggleAttribute("autocomplete", $ac.checked);
+
 
   const $state = $inp1.querySelector(".state");
   const states = {
@@ -360,7 +330,7 @@
     // const opt_id = $jl_inp.value;
     const opt_id = ev.target.value;
     // log("handling change event");
-    const $art = document.querySelector("article");
+    const $art = $$("article");
 
     // Skip fadeout if this is the first article shown
     const fade_out = $art.hidden
@@ -382,12 +352,12 @@
     $art.style.opacity = 0;
 
     $art.hidden = false;
-    document.querySelector("article figure").hidden = !rec.thumbnail;
-    document.querySelector("article img").replaceWith($img);
-    document.querySelector("article h1").innerHTML = rec.titles.display;
-    document.querySelector("article summary").innerHTML = rec.extract_html;
-    document.querySelector("article figcaption").innerHTML = rec.description ?? "";
-    document.querySelector("article > a").href = rec.content_urls.desktop.page;
+    $$("article figure").hidden = !rec.thumbnail;
+    $$("article img").replaceWith($img);
+    $$("article h1").innerHTML = rec.titles.display;
+    $$("article summary").innerHTML = rec.extract_html;
+    $$("article figcaption").innerHTML = rec.description ?? "";
+    $$("article > a").href = rec.content_urls.desktop.page;
 
     await img_loaded; // start fade in after image loaded
     const fade_in = $art.animate([{ opacity: 0 }, { opacity: 1 }], 500);
@@ -396,7 +366,7 @@
   });
 
 
-  document.querySelector("form").onsubmit = () => false;
+  $$("form").onsubmit = () => false;
 
 </script>
 
@@ -438,13 +408,13 @@
 </script>
 <style>
   nav.theme-switch {
-    position: fixed;
+    position: absolute;
     top: 1rem;
     right: 1rem;
     font-size: 2rem;
     font-variation-settings: 'FILL' 1;
     cursor: pointer;
-    filter: drop-shadow(0 0 2px yellow);
+    filter: drop-shadow(0 0 2px rgba(255 255 0 / 50%));
     z-index: 1;
   }
 
@@ -559,6 +529,12 @@
     <span>Even more unecessary animations</span>
   </div>
 
+  <label for="autocomplete">Autocomplete</label>
+  <div>
+    <input id="autocomplete" type="checkbox">
+    <span>Suggests text completion inside input field</span>
+  </div>
+
   <label for="field1">Search</label>
   <jl-search init>
     <fieldset>
@@ -577,7 +553,7 @@
   </jl-search>
 
   <!-- <label for="name">Name</label>
-  <input name="name"> -->
+  <input id="name"> -->
 
 </form>
 
