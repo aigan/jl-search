@@ -1,120 +1,81 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://para.se/2023/setup1.js"></script>
 
 
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1" />
+
+
+<!-- Main theme -->
 <link rel="stylesheet" href="./theme.css" />
-<link rel="stylesheet" href="../../jl-search.css" />
-
-
-
-<script type="module">
-  import "../../jl-search.mjs";
-</script>
-
 <style>
+  /* For keeping sizing in css, avoid fractions. */
+
   :root {
     --padding: .75em;
-    --opacity-disabled-content: .38;
-  }
-
-
-  /* Show symbols after font loaded */
-  .material-symbols-outlined {
-    transition: opacity .5s;
-  }
-
-  html:not(.symbols-loaded) .material-symbols-outlined {
-    opacity: 0;
-    width: 1em;
-    /* keep expected width before ligature replacement */
-  }
-
-  label[for] {
-    padding-top: var(--padding);
-    white-space: nowrap;
-  }
-
-  label[for]:has(+jl-search input:disabled) {
-    opacity: var(--opacity-disabled-content);
-  }
-
-  jl-search {
-    /* --_border-radius: 1.5em; */
-    max-width: 25em;
-
-  }
-
-  form {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--padding);
-    max-width: 80vw;
-  }
-
-  /* form > input {width: calc( 1em + var(--padding)*2); text-align: left } */
-  form>div>input[type=checkbox] {
-    width: 1.5em;
-    height: 1.5em;
-    /* margin: .5em; */
-    margin: calc(var(--padding) - 0.25em) var(--padding);
-  }
-
-  form>div {
-    display: flex;
-    align-items: center;
+    --lineheight: 1.5;
+    --disabled-opacity: .38;
+    --font-family: sans-serif;
+    --border-radius: .25rem;
+    --border-width: .15rem;
+    --border-width-focus: .1875rem;
+    --outline-color: var(--c-outline, gray);
+    --input-bg: var(--c-surface-bright);
+    --input-ink: var(--c-on-surface);
+    --hover-color: var(--c-on-surface, black);
+    --focus-color: var(--c-primary, green);
+    --focus-bg: var(--c-surface-dim, lightgray);
+    --active-color: var(--c-tertiary-container, orange);
+    --disabled-color: var(--c-outline-a33, silver);
+    --error-ink: var(--c-error, red);
+    --error-container-bg: var(--c-error-container);
+    --error-container-ink: var(--c-on-error-container);
   }
 </style>
 
 
-<!-- Theme dark / light switch-->
-<nav class="theme-switch material-symbols-outlined"></nav>
-<script>
-  const mql = window.matchMedia('(prefers-color-scheme: dark)');
-  const sys_dark = mql.matches;
-  if (localStorage.theme === 'dark' || mql.matches)
-    document.documentElement.dataset.theme = "dark";
-  function remember_dark() {
-    document.documentElement.dataset.theme = "dark";
-    localStorage.theme = 'dark';
-  }
-  function forget_dark() {
-    delete document.documentElement.dataset.theme;
-    localStorage.theme = '';
-  }
 
-  mql.addEventListener('change',
-    ev => {
-      if (mql.matches) remember_dark()
-      else forget_dark()
-    }
-  )
-  document.querySelector(".theme-switch").onclick = () => {
-    if (localStorage.theme === 'dark') forget_dark()
-    else remember_dark()
-  }
 
-  //Hide symbols until the font has loaded
-  document.fonts.load("1em Material Symbols Outlined").then(() => {
-    document.documentElement.classList.add('symbols-loaded');
-  })
+
+
+<!-- =====  Symbols  ====== -->
+
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=block" />
+<script type="module">
+  // Hide symbols until the font has loaded. Would have to define @font-face
+  // ourselves to get better control over when the actual font is ready. Using
+  // fonts.googleapis inderection is not perfect.
+  await document.fonts.load("1em Material Symbols Outlined");
+  document.documentElement.classList.add('loaded-symbols');
+  // console.log("Symbols loaded");
 </script>
 <style>
-  nav.theme-switch::before {
-    content: "dark_mode";
-    position: fixed;
-    top: .5rem;
-    right: .5rem;
+  .symbol {
+    font-family: 'Material Symbols Outlined';
+    line-height: 1;
+    display: inline-block;
+    width: 1em;
+    overflow: hidden;
+    transition: opacity 1.5s;
   }
 
-  [data-theme="dark"] nav.theme-switch::before {
-    content: "light_mode";
+  /* keep expected width before ligature replacement */
+  html:not(.loaded-symbols) .symbol {
+    opacity: 0;
+  }
+
+  input[type="checkbox"]:checked::before {
+    font-family: 'Material Symbols Outlined';
+    content: "check";
   }
 </style>
 
 
-<!-- Theme color slider -->
+
+
+
+
+<!-- =====  Theme color slider  ===== -->
+
 <input id="hue" type="range" min="1" max="360">
 <input id="chroma" type="range" min="0" max="0.47" step="0.01">
 <script>
@@ -137,21 +98,245 @@
 <style>
   #hue,
   #chroma {
-    position: fixed;
-    width: 75vw;
-    top: .5rem;
-    left: 0;
-    right: 0;
+    display: block;
+    width: calc(75vw - 3rem);
+    /* Leave room for dark-light toggle */
     margin: 0 auto;
   }
 
-  #chroma {
-    top: 1.5rem;
+  @media (max-width: 600px) {
 
+    #hue,
+    #chroma {
+      margin-bottom: 1rem;
+    }
   }
 </style>
 
 
+
+
+
+
+<!-- =====  Search component  ===== --->
+
+<link rel="stylesheet" href="../../jl-search.css" />
+<script type="module" src="../../jl-search.mjs"></script>
+<style>
+  /* Avoid FOUC while main style loads */
+  jl-search[init] {
+    height: calc(var(--lineheight) * 1em + 2 * var(--padding));
+  }
+
+  jl-search[init]>* {
+    display: none;
+  }
+
+
+  jl-search {
+    --hr-color: var(--c-surface-dim, silver);
+    --shadow-color: var(--c-shadow, black);
+    max-width: 25em;
+  }
+
+  jl-search>.input-wrapper .symbol {
+    font-size: 1.5em;
+    /* max set to line-height to not increase total */
+    user-select: none;
+    padding: calc(var(--_padding) - .25em);
+  }
+
+  @keyframes fade_in {
+    0% {
+      opacity: 0
+    }
+
+    100% {
+      opacity: 1
+    }
+  }
+
+  jl-search ul>li {
+    display: grid;
+    grid-template-columns: 15% auto;
+    column-gap: var(--padding);
+  }
+
+  ul>li>p {
+    font-size: .8em;
+    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    animation: fade_in 1s linear forwards;
+  }
+
+  ul>li>img {
+    object-fit: cover;
+    object-position: center 38%;
+    grid-row: span 2;
+    width: 100%;
+    flex: 0 0 auto;
+    aspect-ratio: 1 / 1;
+    outline: thin solid var(--outline-color);
+    transition: filter 1s, opacity 1s;
+  }
+
+  ul>li>img.default {
+    filter: blur(3px);
+    opacity: .5;
+  }
+</style>
+<script type="module">
+  const log = console.log.bind(console);
+  // May be necessary to wait on element upgrade
+  // await customElements.whenDefined("jl-search");
+
+  const $jl_inp = document.querySelector("jl-search");
+  // log("attatching search", $jl_inp._id);
+  const $delay = document.querySelector("#delay");
+  // const url_search = "https://hem.jonas.liljegren.org:9081/s/";
+  const url_search = "https://wiki.para.se:9071/s/";
+
+  $jl_inp.search = async function search({ query, req_id }) {
+    if (query === "i am lying") throw Error("BOOM");
+
+    const query_out = encodeURIComponent(query.replaceAll(" ", "_"));
+    let opts = "?" + ($delay.checked ? "delay=300" : "");
+    const res = await fetch(url_search + query_out + opts);
+    const json = await res.json();
+    return json;
+  }
+
+  $delay.oninput = () => localStorage.use_delay = $delay.checked;
+  $delay.checked = localStorage.use_delay === "true";
+
+  const $state = $jl_inp.querySelector(".state");
+  const states = {
+    closed: "expand_more",
+    opened: "expand_less",
+    // loading: "progress_activity",
+    loading: $jl_inp.spinner,
+    error: "sentiment_very_dissatisfied",
+  }
+
+  $jl_inp.render_state_html = state => {
+    //Could also do this in css with before content
+    // log("setting state", state, "html to", states[state] );
+    $state.innerHTML = states[state];
+  }
+
+  const url_sum = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+  const recs = new Map();
+  $jl_inp.prepare_options = async q_res => {
+
+    // log("prepare", q_res);
+    const found = q_res.found;
+    const max = Math.min(found.length, $jl_inp._page_size);
+    const recs_p = [];
+    for (let i = 0; i < max; i++) {
+      const title = found[i];
+      recs_p.push(get_rec(title));
+    }
+    // log("prepared", recs_p);
+
+    // Returning Promise.all(recs_p) will wait till all is loaded. But we
+    // rather just return directly and update the content after.
+    // return Promise.all( recs_p);
+  }
+
+  function get_rec(title) {
+    // log("get rec", title);
+    if (recs.has(title)) return recs.get(title);
+    const promise = load_rec(title);
+    recs.set(title, promise);
+    // Replace the promise with the result when done
+    // promise.then( rec=> recs.set(title, rec) );
+    return promise;
+  }
+
+  async function load_rec(title) {
+    // log("Loading", title);
+    const res = await fetch(url_sum + encodeURIComponent(title));
+    const rec = await res.json();
+    // log("Loaded", title, "=>", rec.title);
+    return rec;
+  }
+
+  const url_thumb_default = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Wikipedia-logo-v2.svg/225px-Wikipedia-logo-v2.svg.png";
+
+  $jl_inp.render_item_content = ($li, name) => {
+    const rec_p = recs.get(name);
+    const title = name.replaceAll("_", " ");
+
+    const $img = document.createElement("img");
+    const $title = document.createElement("b");
+    const $desc = document.createElement("p");
+
+    $img.src = url_thumb_default;
+    $img.classList.add("default");
+    $title.innerText = title;
+
+    $li.replaceChildren($img, $title, $desc);
+
+    rec_p.then(rec => {
+      $desc.innerText = rec.description ?? "";
+      if (rec.thumbnail) {
+        $img.src = rec.thumbnail.source;
+        $img.classList.remove("default");
+      }
+    });
+  }
+
+
+  function sleep(time) {
+    return new Promise(resolve => setTimeout(resolve, time));
+  }
+
+</script>
+
+
+
+
+
+
+<!-- ======  MAIN PAGE ====== -->
+
+<style>
+  body {
+    margin: 1rem 3rem;
+    font-family: var(--font-family);
+    line-height: var(--lineheight);
+  }
+
+  @media (max-width: 600px) {
+    body {
+      margin: 1rem;
+    }
+  }
+
+  label[for] {
+    padding-top: var(--padding);
+    white-space: nowrap;
+  }
+
+  label[for]:has(+jl-search input:disabled) {
+    opacity: var(--disabled-opacity);
+  }
+
+  form {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--padding);
+    /* max-width: 80vw; */
+  }
+
+  form>div {
+    display: flex;
+    align-items: center;
+  }
+</style>
 <form>
   <label for="delay">Slow down</label>
   <div>
@@ -160,49 +345,75 @@
   </div>
 
   <label for="field1">Search</label>
-  <jl-search>
-    <label>
-      <span class="material-symbols-outlined">
-        search
-      </span>
-      <input autofocus />
-      <span class="material-symbols-outlined state-normal">
-      </span>
-    </label>
-    <div class="options">
+  <jl-search init>
+    <div class="input-wrapper">
+      <span class="symbol">dictionary</span>
+      <input id="field1" autofocus placeholder="wikipedia articles" />
+      <span class="state symbol"></span>
+    </div>
+    <div class="options empty">
       <hr>
       <ul></ul>
       <hr>
-      <div class="feedback">
-        Do the stuff
-      </div>
+      <div class="feedback"></div>
     </div>
   </jl-search>
+
   <label for="email">E-mail</label>
-  <input id="email" style="z-index:2">
+  <input id="email">
 </form>
 
+
+
+
+
+
+
+<!-- ===== Theme dark / light switch  ===== -->
+
+<nav class="theme-switch symbol"></nav>
 <script>
-  const log = console.log.bind(console);
+  const mql_dark = window.matchMedia('(prefers-color-scheme: dark)');
+  if (localStorage.theme)
+    document.documentElement.dataset.theme = localStorage.theme;
+  else if (mql_dark.matches)
+    document.documentElement.dataset.theme = "dark";
 
-  const $jl_inp = document.querySelector("jl-search");
-  $jl_inp.search = search;
-  const $delay = document.querySelector("#delay");
-  const url_search = "https://wiki.para.se:9071/s/";
-  async function search({ query, req_id }) {
-    const query_out = encodeURIComponent(query.replaceAll(" ", "_"));
-    let opts = "?" + ($delay.checked ? "delay" : "");
-    const res = await fetch(url_search + query_out + opts);
-    const json = await res.json();
-    return json;
+  mql_dark.addEventListener('change',
+    ev => {
+      if (localStorage.theme) return; // keep overrid
+      const theme = mql_dark.matches ? "dark" : "light";
+      document.documentElement.dataset.theme = theme;
+    }
+  )
+  document.querySelector(".theme-switch").onclick = () => {
+    const theme_cur = document.documentElement.dataset.theme;
+    const theme_def = mql_dark.matches ? "dark" : "light";
+    const theme_new = theme_cur === "dark" ? "light" : "dark";
+
+    if (theme_new === theme_def)
+      delete localStorage.theme;
+    else
+      localStorage.theme = theme_new;
+
+    document.documentElement.dataset.theme = theme_new;
   }
-
-  $jl_inp.render_item_html = render_item_html;
-  function render_item_html(text) {
-    return text.replaceAll("_", " ");
-  }
-
-  $delay.oninput = () => localStorage.use_delay = $delay.checked;
-  $delay.checked = localStorage.use_delay === "true";
-
 </script>
+<style>
+  nav.theme-switch {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    font-size: 2rem;
+    font-variation-settings: 'FILL' 1;
+    cursor: pointer;
+  }
+
+  nav.theme-switch::before {
+    content: "dark_mode";
+  }
+
+  [data-theme="dark"] nav.theme-switch::before {
+    content: "light_mode";
+  }
+</style>

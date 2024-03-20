@@ -7,6 +7,9 @@ https://material-web.dev/theming/color/
 The hue will shift for high chroma low lightness
 https://issues.chromium.org/issues/325598621
 
+I'd personally would prefer less contrast in dark-mode, than what Material
+Design v3 suggests. 
+
 
 */
 
@@ -17,14 +20,19 @@ https://issues.chromium.org/issues/325598621
 }
 
 :where(html) {
-	/* --primary-hue: 82; */
-	/* --primary-hue: 139; */
-	/* --primary-hue: 65.7; */
+	/* Hue range 1-360 */
+	--primary-hue: 310;
 
-	--primary-chroma: 0.4;
-	/* --primary-chroma: 0.37; */
+	/* Chroma range 0 -- 0.47
+	 Max for RGB is about 0.25
+	 Max for P3 is about 0.30
+	 -- varies for each hue
+	 Default to near grayscale
+	*/
+	 --primary-chroma: 0.03;
 
 	--error-hue: 27.7;
+	--error-chroma: 0.193;
 	--alt-shift: 60;
 
 	/* emultate mod(), based on
@@ -93,12 +101,12 @@ https://css-tricks.com/using-absolute-value-sign-rounding-and-modulo-in-css-toda
 	--c-v80: oklch(80% var(--variant-chroma) var(--primary-hue));
 	--c-v90: oklch(90% var(--variant-chroma) var(--primary-hue));
 
-	--c-e10: oklch(10% var(--primary-chroma) var(--error-hue));
-	--c-e20: oklch(20% var(--primary-chroma) var(--error-hue));
-	--c-e30: oklch(30% var(--primary-chroma) var(--error-hue));
-	--c-e40: oklch(40% var(--primary-chroma) var(--error-hue));
-	--c-e80: oklch(80% var(--primary-chroma) var(--error-hue));
-	--c-e90: oklch(90% var(--primary-chroma) var(--error-hue));
+	--c-e10: oklch(10% var(--error-chroma) var(--error-hue));
+	--c-e20: oklch(20% var(--error-chroma) var(--error-hue));
+	--c-e30: oklch(30% var(--error-chroma) var(--error-hue));
+	--c-e40: oklch(40% var(--error-chroma) var(--error-hue));
+	--c-e80: oklch(80% var(--error-chroma) var(--error-hue));
+	--c-e90: oklch(90% var(--error-chroma) var(--error-hue));
 
 	--c-scrim: black;
 	--c-shadow: black;
@@ -151,6 +159,9 @@ https://css-tricks.com/using-absolute-value-sign-rounding-and-modulo-in-css-toda
 :where([data-theme="dark"]) {
 	color-scheme: dark;
 
+	/*Would personally use secondary colors in dark mode. The primary is
+	blindingly strong on dark background.*/
+
 	--c-primary: var(--c-p80);
 	--c-on-primary: var(--c-p20);
 	--c-primary-container: var(--c-p30);
@@ -195,27 +206,82 @@ https://css-tricks.com/using-absolute-value-sign-rounding-and-modulo-in-css-toda
 	--c-background: var(--c-surface-bright);
 	--c-on-background: var(--c-on-surface);
 
-
-
 	scrollbar-color: var(--c-outline-a33) transparent;
 	accent-color: var(--c-primary, var(--link));
 	caret-color: var(--c-primary, var(--link));
 
-	color: var(--c-on-background);
-	background: var(--c-background);
-	transition: background-color 1s;
-
-	font-size: 1rem;
-	font-family: sans-serif;
+	color: var(--c-on-surface);
+	background: var(--c-surface-container);
+	transition: background-color 1s;	
 }
 
-:where(body){
-	margin: 3rem;
+
+
+
+
+
+input{
+	font-size: 1em;
+	line-height: var(--lineheight);
+	padding: var(--padding);
+	border-radius: var(--border-radius);
+	border: 0;
+	outline: var(--border-width) solid var(--outline-color);
+	background: var(--input-bg);
+	color: var(--input-ink);
 }
 
-@media (max-width: 600px) {
-	:where(body) {
-		margin: .3rem;
-		margin-top: 3rem;
-	}
+input:hover {
+  outline-color: var(--hover-color);
+}
+
+input:active:hover{
+  outline-color: var(--active-color);
+}
+
+input:focus-visible {
+  outline: var(--border-width-focus) solid var(--focus-color);
+	outline-offset: 0;
+}
+
+
+input:disabled, input:active:disabled {
+  opacity: var(--disabled-opacity);
+  outline-color: var(--disabled-color);
+}
+
+input[type="checkbox"]{
+	display: grid;
+	place-content: center;
+	appearance: none;
+
+	font-size: 1em;
+	width: calc(var(--lineheight) *1em);
+	height: calc(var(--lineheight) *1em);
+	margin: var(--padding);
+}
+input[type="checkbox"]:focus-visible{
+	outline-offset: 0.1875rem;
+}
+
+input[type="checkbox"]:checked {
+	background: var(--outline-color);
+	color: var(--input-bg);
+}
+
+input[type="checkbox"]::before {
+	line-height: 1;
+	font-size: calc(var(--lineheight) *1em);
+}
+
+
+input[type="range"] {
+	cursor: pointer;
+	outline: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  border: thin solid var(--focus-color);
+  outline: var(--border-width-focus) solid var(--focus-color);
+  outline-offset: .125rem;
 }
