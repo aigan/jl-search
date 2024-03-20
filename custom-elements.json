@@ -1,0 +1,555 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "jl-search.mjs",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "caps",
+          "type": {
+            "text": "Object"
+          },
+          "default": "{}",
+          "description": "Capabilities, through polyfill or otherwise. See `load_caps()`"
+        },
+        {
+          "kind": "function",
+          "name": "init",
+          "description": "Load caps and define element"
+        },
+        {
+          "kind": "class",
+          "description": "",
+          "name": "JlSearch",
+          "members": [
+            {
+              "kind": "field",
+              "name": "is",
+              "type": {
+                "text": "string"
+              },
+              "static": true,
+              "default": "\"jl-search\""
+            },
+            {
+              "kind": "field",
+              "name": "_id",
+              "type": {
+                "text": "number"
+              },
+              "default": "++element_id",
+              "description": "Defines the structure of the search result object."
+            },
+            {
+              "kind": "field",
+              "name": "_req_id",
+              "type": {
+                "text": "RequestId"
+              },
+              "default": "0",
+              "description": "Currently latest search request sequence id"
+            },
+            {
+              "kind": "field",
+              "name": "_searching",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "More results coming"
+            },
+            {
+              "kind": "field",
+              "name": "_query",
+              "type": {
+                "text": "string|null"
+              },
+              "default": "null",
+              "description": "Latest running query"
+            },
+            {
+              "kind": "field",
+              "name": "_page_size",
+              "type": {
+                "text": "number"
+              },
+              "default": "8",
+              "description": "Number of items in options list"
+            },
+            {
+              "kind": "method",
+              "name": "setup_dom",
+              "description": "Sets up all the elements used for the component. Call this if they did\nnot exist when the element was connected."
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "description": "Get the parsed value from the text field",
+              "parameters": [
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "opt_id"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "$$",
+              "parameters": [
+                {
+                  "name": "selector",
+                  "description": "The CSS selector to match the elements against.",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "A querySelector() shortcut.",
+              "return": {
+                "type": {
+                  "text": "Element|null"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "to_query",
+              "parameters": [
+                {
+                  "name": "txt",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Convert Search text to normalized query that will be memoized",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "parse",
+              "parameters": [
+                {
+                  "name": "txt",
+                  "description": "from the input field",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Convert input field text to opt_id string",
+              "return": {
+                "type": {
+                  "text": "opt_id"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "format",
+              "parameters": [
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                }
+              ],
+              "description": "convert opt_id to input field text",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "get_tooltip",
+              "parameters": [
+                {
+                  "name": "state",
+                  "type": {
+                    "text": "State"
+                  }
+                }
+              ],
+              "description": "Get the text tip corresponding to the state",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "get_feedback",
+              "parameters": [
+                {
+                  "name": "res",
+                  "type": {
+                    "text": "SearchResult"
+                  }
+                }
+              ],
+              "description": "Text feedback to be displayed below input",
+              "return": {
+                "type": {
+                  "text": "HtmlString"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "get_state"
+            },
+            {
+              "kind": "field",
+              "name": "has_focus",
+              "description": "Is focus inside the component?",
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              },
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "error_reason",
+              "parameters": [
+                {
+                  "name": "error",
+                  "default": "this._error",
+                  "optional": true,
+                  "type": {
+                    "text": "Object"
+                  }
+                }
+              ],
+              "description": "Creates an error message",
+              "return": {
+                "type": {
+                  "text": "HtmlString"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "css_var",
+              "parameters": [
+                {
+                  "name": "name",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Get current css variable value for the root of the component",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "next_option",
+              "description": "Highlight next item in the options list"
+            },
+            {
+              "kind": "method",
+              "name": "previous_option",
+              "description": "Highlight previous item in the options list"
+            },
+            {
+              "kind": "method",
+              "name": "select_option",
+              "parameters": [
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                }
+              ],
+              "description": "Select the given option"
+            },
+            {
+              "kind": "method",
+              "name": "highlight_option",
+              "parameters": [
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                }
+              ],
+              "description": "Highlight specified option"
+            },
+            {
+              "kind": "method",
+              "name": "open",
+              "description": "Open options list dropdown"
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "description": "Close options list dropdown"
+            },
+            {
+              "kind": "method",
+              "name": "revert",
+              "description": "Restore original value of the input field. For now, same as removing\nvalue"
+            },
+            {
+              "kind": "method",
+              "name": "update_state",
+              "description": "Calculates and updates the component state"
+            },
+            {
+              "kind": "method",
+              "name": "search",
+              "description": "Performs a search based on the given query. This method should be\nimplemented by subclasses or replaced.",
+              "parameters": [
+                {
+                  "description": "The search parameters.",
+                  "name": "params",
+                  "type": {
+                    "text": "@param {string} params.query - The query string to search for.\n   * @param {RequestId} params.req_id - The request identifier for tracking\n   * the search request.\n   * "
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "Promise<SearchResult|Error>"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "prepare_options",
+              "description": "Do any additional lookups of data so that anything needed for render is\npresent",
+              "parameters": [
+                {
+                  "name": "res",
+                  "type": {
+                    "text": "SearchResult"
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "Promise"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "render_options",
+              "parameters": [
+                {
+                  "name": "res",
+                  "type": {
+                    "text": "SearchResult"
+                  }
+                }
+              ],
+              "description": "override for custom layout"
+            },
+            {
+              "kind": "method",
+              "name": "render_item",
+              "parameters": [
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                },
+                {
+                  "name": "{ highlighted }"
+                },
+                {
+                  "name": "options",
+                  "type": {
+                    "text": "@param {boolean} options.highlighted Is the option highlighted?\n   * "
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "HTMLElement"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "render_item_content",
+              "parameters": [
+                {
+                  "name": "$li",
+                  "type": {
+                    "text": "HTMLElement"
+                  }
+                },
+                {
+                  "name": "opt_id",
+                  "type": {
+                    "text": "opt_id"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "render_state",
+              "parameters": [
+                {
+                  "name": "state",
+                  "type": {
+                    "text": "State"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "render_tooltip",
+              "parameters": [
+                {
+                  "name": "state",
+                  "type": {
+                    "text": "State"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "render_state_html",
+              "parameters": [
+                {
+                  "name": "state",
+                  "type": {
+                    "text": "State"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "render_feedback",
+              "parameters": [
+                {
+                  "name": "res",
+                  "type": {
+                    "text": "SearchResult"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "render_error",
+              "parameters": [
+                {
+                  "name": "error",
+                  "type": {
+                    "text": "Error"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "use_mono_render",
+              "parameters": [
+                {
+                  "name": "render_sync",
+                  "description": "Synchronous render function. Called with\nthe custom element and the name of the callback triggering the render\ncall as parameters. Signature: (element: Element, renderCallbackName:\nstring) => void",
+                  "type": {
+                    "text": "Function"
+                  }
+                },
+                {
+                  "name": "render_async",
+                  "description": "Optional asynchronous render\nfunction. Should return a Promise. It's called with the same parameters\nas render_sync. Signature: (element: Element, renderCallbackName: string)\n=> Promise<void>",
+                  "optional": true,
+                  "type": {
+                    "text": "Function"
+                  }
+                }
+              ],
+              "description": "Replace all all render callbacks with these if you prefer a Declarative\nRendering strategy. See the Lit example."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "opened"
+            },
+            {
+              "name": "selected"
+            }
+          ],
+          "superclass": {
+            "name": "HTMLElement"
+          },
+          "customElement": true
+        },
+        {
+          "kind": "function",
+          "name": "load_caps",
+          "description": "Loads necessary polyfills and updates the `caps` object to reflect the\ncurrent capabilities of the environment, including polyfills and feature\ndetections.\n\nThis function populates the `caps` object with properties indicating the\navailability and status of various capabilities, such as polyfills for\nmissing browser features. The structure and details of `caps` are as\nfollows:\n- `polyfilled`: Features that have been successfully polyfilled.\n- `missing`: Features that cannot be polyfilled or are not available in the\n  current environment.\n- Additionally, specific capabilities (e.g., `popover`, `scroll_into_view`)\n  are indicated, each potentially being a promise that resolves when the\n  polyfill is applied or the feature is confirmed available.\n\nDevelopers should call this function early in the application lifecycle and\ncan refer to the `caps` object to make informed decisions about using\ncertain features or applying fallbacks."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "caps",
+          "declaration": {
+            "name": "caps",
+            "module": "jl-search.mjs"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "init",
+          "declaration": {
+            "name": "init",
+            "module": "jl-search.mjs"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "declaration": {
+            "name": "JlSearch",
+            "module": "jl-search.mjs"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "load_caps",
+          "declaration": {
+            "name": "load_caps",
+            "module": "jl-search.mjs"
+          }
+        }
+      ]
+    }
+  ]
+}

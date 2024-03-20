@@ -1,0 +1,3 @@
+AddDefaultCharset UTF-8
+AddType text/javascript mjs
+Header set Access-Control-Allow-Origin "*"
