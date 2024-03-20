@@ -10,18 +10,15 @@
 
 <link rel="stylesheet" href="./theme.css" />
 <style>
-  /* For keeping sizing in css, avoid fractions. */
-
+  /* .125rem = 2px */
   :root {
     --padding: .75em;
-    --lineheight: 1.5;
+    --line-height: 1.5;
     --disabled-opacity: .38;
     --font-family: sans-serif;
     --border-radius: .25rem;
     --border-width: .125rem;
-    /* 2px */
     --border-width-focus: .1875rem;
-    /* 3px */
     --outline-color: var(--c-outline, gray);
     --input-bg: var(--c-surface-bright);
     --input-ink: var(--c-on-surface);
@@ -49,6 +46,18 @@
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=block" />
 <script type="module">
+  // Having spinner here since we want to show something while the other files
+  // load. SVG is better since fonts are often not symetrical.
+  window.spinner = `
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="spin">
+  <path
+  d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+  opacity=".25"/>
+  <circle cx="12" cy="2.5" r="1.5"/>
+  </svg>
+`;
+  document.querySelector("jl-search .state").innerHTML = window.spinner;
+
   // Hide symbols until the font has loaded. Would have to define @font-face
   // ourselves to get better control over when the actual font is ready. Using
   // fonts.googleapis inderection is not perfect.
@@ -66,20 +75,35 @@
     transition: opacity 1.5s;
   }
 
-  html:not(.loaded-symbols) .symbol {
+  html:not(.loaded-symbols) .symbol:not(.state),
+  html:not(.loaded-symbols) input[type="checkbox"]:checked::before {
     opacity: 0;
   }
 
   input[type="checkbox"]:checked::before {
     font-family: 'Material Symbols Outlined';
     content: "check";
+    line-height: 1;
   }
 
   jl-search>fieldset .symbol {
     font-size: 1.5em;
-    /* max set to line-height to not increase total */
     user-select: none;
     padding: calc(var(--_padding) - .25em);
+  }
+
+  jl-search .spin {
+    animation: spin 2s infinite linear;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(359deg);
+    }
   }
 </style>
 
@@ -134,7 +158,7 @@
 
 <!-- =====  Search component  ===== --->
 
-<link rel="stylesheet" href="../../jl-search.css" />
+<link rel="stylesheet" href="../jl-search.css" />
 <style>
   jl-search {
     --hr-color: var(--c-surface-dim, silver);
@@ -145,11 +169,8 @@
 
   /* Avoid FOUC while main style loads */
   jl-search[init] {
-    height: var(--input-height);
-  }
-
-  jl-search[init]>* {
-    display: none;
+    height: calc(var(--line-height) * 1em + 2 * var(--padding));
+    /* overflow: hidden; */
   }
 
   @keyframes fade_in {
@@ -164,6 +185,7 @@
 
   jl-search ul>li {
     display: grid;
+    box-sizing: border-box;
     grid-template-columns: 15% auto;
     column-gap: var(--padding);
   }
@@ -197,8 +219,14 @@
   }
 </style>
 <script type="module">
-  import { init } from "../../jl-search.mjs";
+  import { init } from "../jl-search.mjs";
   init();
+
+  /*
+  ## Trigger errors:
+  Backend: trigger error
+  Frontend: i am lying
+  */
 
   // eslint-disable-next-line no-unused-vars
   const log = console.log.bind(console);
@@ -248,7 +276,7 @@
     closed: "expand_more",
     opened: "expand_less",
     // loading: "progress_activity",
-    loading: $inp1.spinner,
+    loading: window.spinner,
     error: "sentiment_very_dissatisfied",
   }
 
@@ -264,16 +292,9 @@
     // log("prepare", q_res);
     const found = q_res.found;
     const max = Math.min(found.length, $inp1._page_size);
-    const recs_p = [];
     for (let i = 0; i < max; i++) {
-      const opt_id = found[i];
-      recs_p.push(get_rec(opt_id));
+      get_rec(found[i]);
     }
-    // log("prepared", recs_p);
-
-    // Returning Promise.all(recs_p) will wait till all is loaded. But we
-    // rather just return directly and update the content after.
-    // return Promise.all( recs_p);
   }
 
   function get_rec(opt_id) {
@@ -329,8 +350,21 @@
   $inp1.addEventListener("change", async ev => {
     // const opt_id = $jl_inp.value;
     const opt_id = ev.target.value;
-    // log("handling change event");
+
+    const search = "?" + encodeURIComponent(opt_id);
+    // window.history.pushState({opt_id}, "", search);
+    // log("Go to", search);
+
+    // The navigation polyfill doesn't handle navigation through
+    // window.location. Using the navigate api for better compatability.
+    navigation.navigate(search);
+    // window.location = search;
+  });
+
+  async function present(opt_id) {
     const $art = $$("article");
+    // log("present", opt_id);
+
 
     // Skip fadeout if this is the first article shown
     const fade_out = $art.hidden
@@ -351,6 +385,8 @@
     await fade_out.finished;
     $art.style.opacity = 0;
 
+    // log("present", opt_id, rec);
+
     $art.hidden = false;
     $$("article figure").hidden = !rec.thumbnail;
     $$("article img").replaceWith($img);
@@ -363,10 +399,48 @@
     const fade_in = $art.animate([{ opacity: 0 }, { opacity: 1 }], 500);
     await fade_in.finished;
     $art.style.opacity = 1;
-  });
+  }
 
 
+  const [base] = window.location.href.split("?");
   $$("form").onsubmit = () => false;
+
+  const opt_id = new URL(document.location).search.slice(1);
+  if (opt_id.length) present(opt_id);
+
+
+  if (!window.navigation) {
+
+    // log("Capability navigation loading");
+    import("https://para.se/2024/x/@virtualstate/navigation/esnext/polyfill.mjs").then(() => {
+      log("Capability navigation ready");
+      install_router()
+    });
+  } else {
+    install_router();
+  }
+
+  async function install_router() {
+    // log("router installed", navigation.addEventListener);
+    navigation.addEventListener("navigate", ev => {
+      // Progressive enhancement. Will work enyway
+      // log("navigate to", ev.destination.url);
+
+      if (!ev.canIntercept) return;
+      // @virtualstate/navigation doesn't set ev.downloadRequest
+      if (ev.hashChange) return;
+
+      const [page, search] = ev.destination.url.split("?");
+      if (page !== base) return;
+
+      const opt_id = decodeURIComponent(search);
+      log("Navigate", ev.navigationType, opt_id);
+
+      ev.intercept({
+        handler: () => present(opt_id),
+      })
+    })
+  }
 
 </script>
 
@@ -438,7 +512,7 @@
   body {
     margin: 1rem 3rem;
     font-family: var(--font-family);
-    line-height: var(--lineheight);
+    line-height: var(--line-height);
   }
 
   @media (max-width: 600px) {
@@ -554,7 +628,6 @@
 
   <!-- <label for="name">Name</label>
   <input id="name"> -->
-
 </form>
 
 <article hidden>

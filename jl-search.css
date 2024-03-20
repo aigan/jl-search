@@ -1,6 +1,5 @@
 jl-search {
   display: inline-block;
-  /* box-sizing: content-box; */
   font-family: var(--font-family, sans-serif);
   --_padding: var(--padding, 0.5em);
   --_line-height: var(--line-height, 1.2);
@@ -10,11 +9,11 @@ jl-search {
   --_active-color: var(--active-color, orange);
   --_focus-color: var(--focus-color, green);
   --_focus-bg: var(--focus-bg, lightgray);
-  --_highlight-bg: var(--highlight-bg, lightgreen);
+  --_highlight-bg: var(--highlight-bg, palegreen);
   --_disabled-color: var(--disabled-color, silver);
   --_input-bg: var(--input-bg, white);
   --_input-ink: var(--input-ink, black);
-  --_selected-bg: var(--selected-bg, lightgreen);
+  --_selected-bg: var(--selected-bg, palegreen);
   --_selected-ink: var(--selected-ink, maroon);
   --_disabled_content_opacity: var(--disabled-opacity, 0.38);
   --_border-width: var(--border-width, 0.15rem);
@@ -37,10 +36,6 @@ jl-search {
   --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
   */
 }
-
-/* jl-search * {
-  box-sizing: content-box;
-} */
 
 :root {
   /* Variables that has to be in root. This is ignored if adopted in shadow */
@@ -223,7 +218,7 @@ jl-search nav .error {
   color: var(--_error-container-ink);
 }
 
-jl-search[data-state="loading"] .state {
+jl-search .state {
   height: 1em;
 }
 

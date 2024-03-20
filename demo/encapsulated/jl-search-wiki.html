@@ -1,6 +1,7 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<link rel="modulepreload" href="../jl-search.mjs">
 
 
 <script type="module">
@@ -81,18 +82,20 @@
 <style>
   :root {
     --font-family: sans-serif;
-    --lineheight: 1.5;
+    --line-height: 1.5;
     --padding: .75em;
     --border-width: .125rem;
     --border-width-focus: .25rem;
     --focus-color: #347f53;
     --jl-search_move-speed: .25s;
+    --outline-color: gray;
+
   }
 
   body {
     margin: 1rem 3rem;
     font-family: var(--font-family);
-    line-height: var(--lineheight);
+    line-height: var(--line-height);
   }
 
   @media (max-width: 600px) {
@@ -134,7 +137,7 @@
     border: var(--border-width) color-mix(in oklch, var(--outline-color), transparent 80%) solid;
     width: min-content;
     display: none;
-    background: var(--c-surface-container-highest);
+    background: cornsilk;
   }
 
   figure:has(img[src]) {

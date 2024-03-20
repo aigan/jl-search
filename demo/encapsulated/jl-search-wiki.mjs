@@ -1,4 +1,4 @@
-import { JlSearch, load_caps } from "../../jl-search.mjs";
+import { JlSearch, load_caps } from "../jl-search.mjs";
 
 // eslint-disable-next-line no-unused-vars
 const log = console.log.bind(console);
@@ -28,13 +28,16 @@ const style = css`
     }
   }
 
-  :host ul > li {
+  
+
+  ul > li {
     display: grid;
+    box-sizing: border-box;
     grid-template-columns: 15% auto;
     column-gap: var(--padding);
   }
 
-  :host ul > li > p {
+  ul > li > p {
     font-size: 0.8em;
     margin: 0;
     text-overflow: ellipsis;
@@ -43,7 +46,7 @@ const style = css`
     animation: fade_in 1s linear forwards;
   }
 
-  :host ul > li > img {
+  ul > li > img {
     object-fit: cover;
     /* Center top works much better than golden ratio for most wikipedia image
     thumbs */
@@ -56,13 +59,13 @@ const style = css`
     transition: filter 1s, opacity 1s;
   }
 
-  :host ul > li > img.default {
+  ul > li > img.default {
     filter: blur(2px);
     opacity: 0.3;
     outline: none;
   }
 
-  :host .symbol {
+  .symbol {
     font-family: "Material Symbols Outlined";
     line-height: 1;
     display: inline-block;
@@ -71,7 +74,11 @@ const style = css`
     transition: opacity 1.5s;
   }
 
-  :host fieldset .symbol {
+  fieldset[init] .symbol:not(.state) {
+    opacity: 0;
+  }
+  
+  fieldset .symbol {
     font-size: 1.5em;
     /* max set to line-height to not increase total */
     user-select: none;
@@ -83,7 +90,7 @@ const template = html`
   <style>
     ${style}
   </style>
-  <fieldset>
+  <fieldset init>
     <span class="symbol">dictionary</span>
     <input placeholder="wikipedia articles" name="serach" />
     <span class="state symbol"></span>
@@ -104,6 +111,7 @@ class JlSearchWiki extends JlSearch {
   }
 
   async search({ query }) {
+    
     const query_out = encodeURIComponent(query);
     const res = await fetch(url_search + query_out);
     const json = await res.json();
@@ -197,14 +205,15 @@ class JlSearchWiki extends JlSearch {
   async setup() {
     load_caps();
 
-    const style_P = this.setup_style();
+    await this.setup_style();
+    const $root = this.shadowRoot;
+    // log("Using template");
+    $root.innerHTML = template;
+    $root.querySelector(".state").innerHTML = this.spinner;
+
     await symbol_font_promise;
     await document.fonts.load("1em Material Symbols Outlined");
-    await style_P;
-
-    const $root = this.shadowRoot;
-    log("Using template");
-    $root.innerHTML = template;
+    $root.querySelector("fieldset").removeAttribute("init");
 
     this.setup_dom();
   }
@@ -214,7 +223,7 @@ class JlSearchWiki extends JlSearch {
     // be used in Light dom. We load the styles here and convert them for living
     // in the shadow.
 
-    const style_url = new URL("../../jl-search.css", import.meta.url);
+    const style_url = new URL("../jl-search.css", import.meta.url);
     const res = await fetch(style_url);
     const text = await res.text();
 
