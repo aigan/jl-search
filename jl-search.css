@@ -4,12 +4,15 @@ jl-search {
   --_padding: var(--padding, .5em);
   --_enabled-color: var(--outline-color, gray);
   --_hover-color: var(--hover-color, black);
+  --_hover-brightness: 89%;
   --_active-color: var(--active-color, orange);
   --_focus-color: var(--focus-color, green);
   --_focus-bg: var(--focus-bg, lightgray);
   --_disabled-color: var(--disabled-color, silver);
   --_input-bg: var(--input-bg);
   --_input-ink: var(--input-ink);
+  --_selected-bg: var(--selected-bg);
+  --_selected-ink: var(--selected-ink);
   --_disabled_content_opacity: var(--disabled-opacity, .38);
   --_border-width: var(--border-width, .15rem);
   --_border-width-focus: var(--border-width-focus, .25rem);
@@ -22,7 +25,6 @@ jl-search {
   --_error-container-bg: var(--error-container-bg, lightsalmon);
   --_error-container-ink: var(--error-container-ink, maroon);
 
-  /* view-transition-name: jl-search; */
 }
 
 :root{
@@ -41,8 +43,10 @@ jl-search>fieldset {
 
   border-radius: var(--_border-radius);
 
-  background: var(--_input-bg);
+  --_bg: var(--_input-bg);
+  background: var(--_bg);
   color: var(--_input-ink);
+
   transition: box-shadow .2s;
   view-transition-name: jl-search-field;
 
@@ -50,6 +54,11 @@ jl-search>fieldset {
   outline: var(--_border-width) solid var(--_outline-color);
 }
 
+jl-search[selected]>fieldset{
+  --_bg:  var(--_selected-bg);
+  /* background: var(--_selected-bg); */
+  color: var(--_selected-ink);
+}
 
 
 jl-search>fieldset>span {
@@ -87,36 +96,14 @@ jl-search:hover:active {
   --_outline-color: var(--_active-color);
 }
 
-/* ::view-transition-group(root),
-::view-transition-image-pair(root),
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 0s;
-} */
-
-/* 
-::view-transition-group(jl-search),
-::view-transition-image-pair(jl-search),
-::view-transition-old(jl-search),
-::view-transition-new(jl-search) {
-  animation-duration: 0s;
-} */
-
-
-
-/* ::view-transition-image-pair(jl-search-field),
-::view-transition-old(jl-search-field),
-::view-transition-new(jl-search-field) {
-  animation-duration: 0s;
-} */
-
-
 ::view-transition-group(jl-search-field) {
   animation-duration: 0s;
 }
 
 jl-search>fieldset>.state:hover {
-  background: var(--_focus-bg);
+  /* Allows for hover on any bg  */
+  background: color-mix(in oklch, var(--_bg) var(--_hover-brightness), black);
+  cursor: pointer;
 }
 
 jl-search:focus-within {
@@ -200,6 +187,10 @@ jl-search nav.empty hr:has(+ul) {
   display: none
 }
 
+jl-search[selected] nav hr:has(+ul) {
+  display: none
+}
+
 jl-search nav hr:has(+.error) {
   display: none
 }
@@ -223,7 +214,7 @@ jl-search ul {
   list-style: none;
   margin: 0;
   /* padding: var(--_padding) 0; */
-  padding: 0;
+  padding: calc(var(--_padding)/2) 0;
 
   display: flex;
   flex-direction: column;
@@ -236,12 +227,19 @@ jl-search ul {
 jl-search ul>li {
   /* padding: calc(var(--_padding)/3) var(--_padding) ; */
   padding: calc(var(--_padding)/2) var(--_padding);
+  cursor: pointer;
+  --_bg: var(--_input-bg);
+  background: var(--_bg);
 }
 
+jl-search ul>li[aria-selected=true]{
+  --_bg: var(--c-secondary-container);
+  /* background: var(--c-secondary-container); */
+}
 
 jl-search ul>li:hover {
-  background: var(--_focus-bg);
-  cursor: pointer;
+  /* Allows for hover on any bg */
+  background: color-mix(in oklch, var(--_bg) var(--_hover-brightness), black);
 }
 
 jl-search nav footer {
@@ -332,29 +330,4 @@ jl-search:not([data-anim=closing]) nav.\:popover-open {
 
 jl-search:not([data-anim=closing]) nav:popover-open {
   grid-template-rows: 1fr;
-}
-
-
-
-
-
-
-@keyframes grow-y {
-  from {
-    transform: scaleY(0)
-  }
-
-  to {
-    transform: scaleY(1)
-  }
-}
-
-@keyframes shrink-y {
-  0% {
-    transform: scaleY(1);
-  }
-
-  100% {
-    transform: scaleY(0);
-  }
 }

@@ -18,7 +18,58 @@ function global_onclick(ev) {
 }
 
 class El extends HTMLElement {
+
   static is = "jl-search"
+
+  _id = ++element_id;
+  _caps = caps; // Expose capability promises
+
+  _ev = {};  // Event listeners
+  _error = null; // Aggregated error state
+
+  _req_id = 0; // search request sequence id
+  _memory = new Map(); // Memoized search results
+  _searching = false; // More results coming
+  _query = null; // Latest running query
+  _mouse_inside = false; // For focusout
+  // _txt_cur = ""; // Current input field processed text
+
+
+  // Size of 8 is small enough for both nitive load and mobile screen size for
+  // the double-row layout. But its far to small for the number of distinct
+  // articles that uses the same name, so we need to extend it for some cases.
+  // Applications using this sort of autocomplete widget could do its own
+  // logic for asking for more results in certain cases, be it for an infinite
+  // scroll, additional pages, grouping, or just extending the result list.
+  _page_size = 8;
+
+  _highlighted_option = null;
+  // _accepted = false;
+  _retain_opened = true; // User wants options opened
+  _do_autocomplete = false;
+
+
+  // Search response data
+  static data_tmpl = {
+    found: [],          // matches returned
+    count: 0,           // total matches
+    query: null,        // search query
+    first_req: 0,       // original req_id
+    req: 0,             // latest req_id
+    error: null,        // error object
+    req_sent: null,     // epoch
+    speed: 0,           // ms
+    from_memory: true,  // cached response
+    from_visited: false,// previously selected options
+  }
+
+  // Separating found vs rendered search results since they could be async
+  _data = {
+    found: { ...El.data_tmpl },
+    rendered: { ...El.data_tmpl },
+  }
+
+  // Not all states used in this element
   static states = {
     closed: ['▼', "Expand"],
     opened: ['▲', "Collapse"],
@@ -35,49 +86,21 @@ class El extends HTMLElement {
     saved: ["\u2714", "Saved"],
   };
 
-  static properties = {
-    lock: Boolean,
-  }
+  // static properties = {
+  //   lock: Boolean,
+  // }
 
   constructor() {
     super();
     const $el = this;
 
-    $el._id = ++element_id;
-    $el._li_id = 0;
-    $el._ev = {};
-    $el._error = null;
-    $el._req_id = 0;
-    $el._memory = new Map();
-    $el._caps = caps;
-    $el._transitions = new Set();
-    $el._transitions_resolve = null;
-    $el._page_size = 8;
 
-    $el._selected_index = null;
-    $el._accepted = false;
-    $el._retain_opened = false;
+    $el.setup_visited();
 
-    // Keeping async actions straight
-    $el._searching = false;
-    $el._mouse_inside = false;
-
-    const data_tmpl = {
-      options: [],
-      req: 0,
-      query: "",
-      count: 0,
-      speed: undefined,
-    }
-
-    $el._data = {
-      found: { ...data_tmpl },
-      rendered: { ...data_tmpl },
-    }
-
+    // Not handling DOM mutations in this implementation
     $el._$inp = $el.querySelector("input");
     $el._$opts = $el.querySelector("nav");
-    $el._$label = $el.querySelector("fieldset");
+    $el._$field = $el.querySelector("fieldset");
     $el._$feedback = $el.querySelector("nav footer");
     $el._$state = $el.querySelector(".state");
 
@@ -86,17 +109,23 @@ class El extends HTMLElement {
     // attributes
     $el.setup_$el();
     $el.setup_$inp();
-    $el.setup_$label();
+    $el.setup_$field();
     $el.setup_$opts();
     $el.setup_$state();
 
+
+    // log(El.is, $el._id, "initiated");
   }
 
-  setup_$label() {
+
+
+  setup_$field() {
     const $el = this;
-    const $label = $el._$label;
-    if (!$label.id) $label.setAttribute("id", `${El.is}-anchor-${$el._id}`);
-    // log("setup label", $label);
+    const $field = $el._$field;
+    if (!$field.id) $field.setAttribute("id", `${El.is}-anchor-${$el._id}`);
+    // log("setup label", $field);
+
+    $field.addEventListener("click", ev => $el.on_field_click(ev));
   }
 
   setup_$opts() {
@@ -104,13 +133,15 @@ class El extends HTMLElement {
     const $opts = $el._$opts;
 
     $opts.setAttribute("popover", "manual");
-    $opts.setAttribute("anchor", $el._$label.id);
+    $opts.setAttribute("anchor", $el._$field.id);
     $opts.classList.add("empty");
 
     caps.popover.then(() => {
       $opts.classList.add('loaded-popover');
       // $opts.style.animationIterationCount = "0";
     });
+
+    $opts.addEventListener("click", ev => $el.on_opts_click(ev));
 
     let open_promise = null;
     let open_resolve;
@@ -147,14 +178,11 @@ class El extends HTMLElement {
       });
     }
 
-    // $opts.addEventListener("transitionstart", ev => log("start"));
-    // $opts.addEventListener("transitionend", ev => log("end"));
-    // $opts.addEventListener("transitioncancel", ev => log("cancel"));
-    // $opts.addEventListener("transitionrun", ev => log("run"));
-
     $opts.addEventListener("transitionend", ev => {
+      if (ev.target !== $opts) return; // Ignore transition from children
+
       if ($el.dataset.anim === "opening") {
-        log("transitioned to opened");
+        // log("transitioned to opened");
         if (!open_promise) return;
         open_promise = null;
         open_resolve();
@@ -162,31 +190,30 @@ class El extends HTMLElement {
       }
 
       if ($el.dataset.anim === "closing") {
-        log("transitioned to closed");
+        // log("transitioned to closed");
         if (!close_promise) return;
         close_promise = null;
         close_resolve();
         return;
       }
 
-      log("unexpected transition");
+      // log("transition", ev.target, ev);
     });
 
 
-    $opts.addEventListener("toggle", ev => {
-      return;
-      if (ev.newState === "open") {
-        log("$opts toggle to opened");
-        if (!open_promise) return;
-        open_promise = null;
-        open_resolve();
-      } else {
-        log("$opts toggle to closed");
-        if (!close_promise) return;
-        close_promise = null;
-        close_resolve();
-      }
-    });
+    // $opts.addEventListener("toggle", ev => {
+    //   if (ev.newState === "open") {
+    //     log("$opts toggle to opened");
+    //     if (!open_promise) return;
+    //     open_promise = null;
+    //     open_resolve();
+    //   } else {
+    //     log("$opts toggle to closed");
+    //     if (!close_promise) return;
+    //     close_promise = null;
+    //     close_resolve();
+    //   }
+    // });
 
 
   }
@@ -212,14 +239,17 @@ class El extends HTMLElement {
 
     $el._ev.inp = {
       input: ev => $el.on_input(ev),
-      // keydown: ev => $el.on_keydown(ev),
+      change: ev => $el.on_change(ev),
+      keydown: ev => $el.on_keydown(ev),
+      // keyup: ev => $el.on_keyup(ev),
       focus: ev => $el.on_focus(ev),
-      // click: ev => $el.on_click(ev),
     }
 
     for (const [type, listener] of Object.entries($el._ev.inp)) {
       $inp.addEventListener(type, listener);
     }
+
+
   }
 
   setup_$state() {
@@ -252,13 +282,16 @@ class El extends HTMLElement {
     }
 
     // Manually propagate click after all else is done
-    $el.on_click(ev);
+    $el.on_field_click(ev);
   }
 
-  on_click(ev) {
+  on_field_click(ev) {
     const $el = this;
-    // log("BING");
+    log("CLICK field (userselect)");
+
+    $el._pos_persist = false; // Allow text de-selection
     $el._$inp.focus();
+
   }
 
   setup_$el() {
@@ -266,7 +299,7 @@ class El extends HTMLElement {
     $el._ev.el = {
       focusout: ev => $el.on_focusout(ev),
       mousedown: ev => $el.on_mousedown(ev),
-      click: ev => $el.on_click(ev),
+      // click: ev => $el.on_click(ev),
     }
 
     for (const [type, listener] of Object.entries($el._ev.el)) {
@@ -296,13 +329,271 @@ class El extends HTMLElement {
 
   on_input(ev) {
     const $el = this;
+
+    const $inp = $el._$inp;
+    let txt = $inp.value;
+
+    /*
+      Autocompletion with the completion text being inserted ans selected
+      after the user input. Tried to make it work, even with compensating for
+      async changes from mobile virtual keyboards or Input Method Editors. But
+      even while keeping track of the autocompletion texts, there are still
+      some situations where I cna't know for sure if a specific input was
+      faulty because of a race condition.
+
+      No wonder that the Google search field stopped using this form of
+      autocompletion. I will have to resign to not using autocompletion with
+      these input methods.
+
+      So instead, autocomplete will be default off and only used in the
+      precence of keyboard events that is not "Unidentified".
+
+    // Virtual keyboards will not send keydown events. Check here if selection
+    // was deleted, so that we dont just add it back again.
+
+    // Handling both mobile and desktop selection "DELETE"
+    if (($el._pos1 < $el._pos2) && ($el._pos1 === txt.length)) {
+      log("selection deleted");
+      $el._do_autocomplete = false;
+    }
+
+    // Also skip autcomplete if last character was deleted, since backspace
+    // can not be listened to on virtual keyboards. This do not apply on
+    // desktop.
+
+    if ($el._pos1 === $el._pos2 && $el._pos1 === txt.length + 1) {
+      log("mobile backspace");
+      $el._do_autocomplete = false;
+    }
+
+    // Mobile virtual keyboards async input may send input after de-selecting
+    // or not yet recting on selection, causing the selected text to not be
+    // removed.
+
+    // Keyboard ADD to end with no selection
+    if ($el._pos_persist
+      && $el._pos1 < $el._pos2
+      && $el._pos2 === $el._txt_cur.length
+      && txt.length > $el._pos2
+      && txt.startsWith($el._txt_cur)
+    ) {
+      const txt_added = txt.slice($el._pos2);
+      const txt_base = txt.slice(0, $el._pos1);
+      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
+      log("##### Correcting text ADD END for missing selection");
+      txt = $el._txt_cur = $inp.value = txt_base + txt_added;
+    }
+
+    // Keyboard ADD to middle with no selection
+    if ($el._pos_persist
+      && $el._pos1 < $el._pos2
+      && $el._pos2 === $el._txt_cur.length
+      && txt.length > $el._pos2
+      && txt.startsWith($el._txt_cur.slice(0, $el._pos1))
+      && txt.endsWith($el._txt_cur.slice($el._pos1))
+    ) {
+      const txt_base = txt.slice(0, $el._pos1);
+      const txt_added = txt.slice($el._pos1, txt.length - $el._pos2);
+      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
+      log("##### Correcting text input ADD MIDDLE for missing selection");
+      txt = $el._txt_cur = $inp.value = txt_base + txt_added;
+    }
+
+    // Keyboard BACKSPACE from end with no selection
+    if ($el._pos_persist
+      && $el._pos1 < $el._pos2
+      && $el._pos2 === $el._txt_cur.length
+      && txt.length === $el._pos2 - 1
+      && txt === $el._txt_cur.slice(0, -1)
+    ) {
+      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
+      log("##### Correcting text backspace END for missing selection");
+      txt = $el._txt_cur = $inp.value = $el._txt_cur.slice(0, $el._pos1 - 1);
+    }
+
+    // Keyboard BACKSPACE from middle with no selection
+    if ($el._pos_persist
+      && $el._pos1 < $el._pos2
+      && $el._pos2 === $el._txt_cur.length
+      && txt.length === $el._pos2 - 1
+      && txt === $el._txt_cur.slice(0, $el._pos1 - 1) + $el._txt_cur($el._pos1)
+    ) {
+      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
+      log("##### Correcting text backspace MIDDLE for missing input change");
+      txt = $el._txt_cur = $inp.value = txt.slice(0, $el._pos1 - 1);
+    }
+  */
+
+    $el._pos1 = $inp.selectionStart;
+    $el._pos2 = $inp.selectionEnd;
+    // log($el.input_debug(txt, $el._pos1, $el._pos2, "on_input"));
+
     if (!$el._input_ready) return;
     $el._retain_opened = true;
+
     $el.handle_search_input($el._$inp.value);
   }
 
+  on_change(ev) {
+    const $el = this;
+    // TODO: check if valid
+    ev.stopPropagation();
+  }
+
   on_keydown(ev) {
-    log("on_keydown", ev)
+    log("on_keydown", ev.key);
+
+    switch (ev.key) {
+      case "Unidentified": return;
+      case "Escape": this.on_escape(ev); break;
+      case "ArrowDown": this.next_option(); break;
+      case "ArrowUp": this.previous_option(); break;
+      case "Enter": this.on_enter(); break;
+      case "Backspace": this.on_backspace(ev); return;
+      default:
+        this._do_autocomplete = true;
+        this._pos_persist = false;
+        return; // Pass to next handler
+    }
+
+    ev.preventDefault();
+    // log("on_keydown", ev.key, "DONE");
+  }
+
+  on_keyup(ev) {
+    log("on_keyup", ev);
+  }
+
+  on_selectionchange(ev) {
+    const $el = this;
+    // log("on_select", $el._$inp.selectionStart, $el._$inp.selectionEnd, $el.has_focus(), $el._pos_persist);
+    if (!$el.has_focus()) return;
+    const $inp = $el._$inp;
+
+    const pos1 = $inp.selectionStart;
+    const pos2 = $inp.selectionEnd;
+
+    if (($el._pos1 === pos1) && ($el._pos2 === pos2)) return;
+
+    const txt = $inp.value;
+    log("on_select", $el._pos_persist ? "PERSIST" : "",
+      `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+
+    if (($el._pos1 === $el._pos2) && (pos1 === pos2)) return;
+
+
+    // Workaround for browsers some times losing the selected text.
+    if ($el._pos_persist && pos1 === pos2 && pos2 === txt.length) {
+      $inp.setSelectionRange($el._pos1, pos2);
+      log($el.input_debug(txt, $el._pos1, pos2, "RE-SELECTED"));
+      return;
+    }
+
+    // Selection changed. Do search on the left part and treat the right part
+    // as transient autocomplete.
+    // $el._do_autocomplete = false;
+    $el._pos1 = pos1;
+    $el._pos2 = pos2;
+
+    if (pos2 === txt.length) {
+      const txt_prefix = txt.slice(0, pos1);
+      log($el.input_debug(txt, pos1, pos2, "on_select -> search START"));
+      return $el.handle_search_input(txt_prefix);
+    } else {
+      log($el.input_debug(txt, pos1, pos2, "on_select -> search WHOLE"));
+      return $el.handle_search_input(txt);
+    }
+  }
+
+  _pos1 = 0; // input text selection start
+  _pos2 = 0; // input text selection end
+  _pos_persist = false;
+  input_select(pos1, pos2) {
+    const $el = this;
+    const $inp = $el._$inp;
+
+    if (pos1 == null) {
+      pos1 = 0;
+      pos2 = $inp.value.length;
+    }
+
+    // Detect user changing selection, so that the search can reflect the
+    // non-selected beginning part.
+
+    if ((pos1 === $el._pos1) && (pos2 === $el._pos2)) return;
+
+    $el._pos1 = pos1;
+    $el._pos2 = pos2;
+
+    // Android virtual keyboard updating input field has async selection
+    // handling, causing selected text to be deselected shortly afterwards.
+
+    // Android update input filed selection async, causing race conditions.
+    // Using a flag here as a workaround.
+    $el._pos_persist = true;
+
+    $inp.setSelectionRange(pos1, pos2);
+  }
+
+  input_debug(txt, pos1, pos2, label) {
+    if (pos1 === pos2) return `»${txt.slice(0, pos1)}❚${txt.slice(pos2)}« ${label}`;
+    return `»${txt.slice(0, pos1)}❰${txt.slice(pos1, pos2)}❱${txt.slice(pos2)}« ${label}`;
+  }
+
+  set_input(text, pos1, pos2, reason) {
+    const $el = this;
+    $el._$inp.value = text;
+    $el.input_select(pos1, pos2);
+    log($el.input_debug(text, pos1, pos2, reason));
+  }
+
+  on_backspace(ev) {
+    const $el = this;
+
+    // A normal backspace will delete the selected text. Since we are using
+    // live completion suggestions, we want to support backspace in relation
+    // to anchor position.
+
+    const $inp = $el._$inp;
+    const txt = $inp.value;
+    const pos1 = $inp.selectionStart;
+    const pos2 = $inp.selectionEnd;
+
+    // log($el.input_debug(txt, pos1, pos2, "BACKSPACE before"));
+
+    // Use default behaviour if not in autocomplete mode
+    // if (pos1 === pos2) return;
+    if (pos2 !== txt.length) return;
+    if (pos1 === 0) return;
+    if (pos2 === 0) return;
+
+    $el.set_input(txt.slice(0, pos1 - 1), (pos1 - 1), (pos1 - 1), "BACKSPACE");
+
+    ev.preventDefault();
+    $el._do_autocomplete = true;
+    $el.handle_search_input($inp.value);
+  }
+
+  on_escape(ev) {
+    const $el = this;
+    // Make escape back out from current context, step by step. 1. close
+    // options, 2. select all, 3. revert value
+
+    if ($el.hasAttribute("opened")) return void this.hide_options();
+    const $inp = $el._$inp;
+    const pos1 = $inp.selectionStart;
+    const pos2 = $inp.selectionEnd;
+    if (pos1 === 0 && pos2 === $inp.value.length) return void $el.revert();
+
+    $el.input_select();
+    log($el.input_debug($inp.value, 0, $inp.value.length, "escape"));
+  }
+
+  on_enter() {
+    const $el = this;
+    // Should only accept valid values...
+    const id = $el.parse($el._$inp.value);
+    $el.select_option(id);
   }
 
   on_focus(ev) {
@@ -317,22 +608,150 @@ class El extends HTMLElement {
     if ($el._retain_opened) $el.show_options();
   }
 
-  handle_search_input(query_in) {
+  next_option() {
     const $el = this;
 
-    $el._selected_index = null;
-    $el._accepted = false;
+    const options = $el._data.rendered.found;
+    if (!options.length) return;
+
+    const max = Math.min(options.length, $el._page_size);
+    let selected = options.indexOf($el._highlighted_option);
+    selected++;
+    if (selected >= max) selected = 0;
+
+    const opt_id = options[selected] ?? null;
+    log("next", selected, opt_id);
+
+    $el.autocomplete($el._query ?? "", opt_id);
+    $el.highlight_option(opt_id);
+
+    $el._retain_opened = true;
+    $el.removeAttribute("selected");
+    $el.show_options();
+  }
+
+  previous_option() {
+    const $el = this;
+
+    const options = $el._data.rendered.found;
+    if (!options.length) return;
+
+    const max = Math.min(options.length, $el._page_size);
+    let selected = options.indexOf($el._highlighted_option);
+    if (selected < 1) selected = max;
+    selected--;
+
+    const opt_id = options[selected] ?? null;
+    log("previous", selected, opt_id);
+
+    $el.autocomplete($el._query ?? "", opt_id);
+    $el.highlight_option(opt_id);
+
+
+    $el._retain_opened = true;
+    $el.removeAttribute("selected");
+    $el.show_options();
+  }
+
+
+  on_opts_click(ev) {
+    const $el = this;
+
+    const $target = ev.target.closest(El.is + " nav li");
+    if (!$target) return;
+    $el.select_option($target.dataset.id);
+  }
+
+  select_option(id) {
+    const $el = this;
+    // log("selected", id);
+    $el.visited_add(id);
+
+    // Could do an animation of text going to input field
+    $el.hide_options();
+    $el._retain_opened = false;
+
+    // This action keeps the options list unchanged. We may expect that
+    // replacing the text would also update the list with search result for
+    // that text, but keeping the list makes it easier to correct selection
+    // mistakes, without too much confusion. Any subsequent input events will
+    // update the options list.
+
+    const txt = $el.format(id);
+    $el.set_input(txt, txt.length, txt.length, "selected");
+    $el.highlight_option(id);
+    $el.animate_field_flash();
+    $el.setAttribute("selected", id);
+    $el.dispatchEvent(new Event("change"));
+    $el._$inp.blur();
+  }
+
+  animate_field_flash() {
+    const $el = this;
+    const keyframes = [
+      {
+        color: "white",
+        background: $el.css_var("active-color"),
+      },
+      {
+        color: $el.css_var("input-ink"),
+        background: $el.css_var("input-bg"),
+        offset: .15,
+      },
+      {
+        color: "white",
+        background: $el.css_var("active-color"),
+        offset: .3,
+      },
+      {
+        color: $el.css_var("selected-ink"),
+        background: $el.css_var("selected-bg"),
+      },
+    ];
+    $el._$field.animate(keyframes, 800);
+  }
+
+  handle_search_input(text) {
+    const $el = this;
+
+    // $el._accepted = false;
     $el._error = null;
+    $el.removeAttribute("selected");
 
-    const query = query_in.trim().toLowerCase();
+    const query = $el.to_query(text);
 
-    if (!query.length) return $el.set_options_from_history();
+    if (query === $el._query) {
+      log(`⮞ »${query}« unchanged`);
+      $el.auto_highlight($el._data.rendered.found[0]);
+      return;
+    }
 
     const req_id = ++$el._req_id;
-    // log("search", req_id, query);
-    // $el.render_feedback($el._data.rendered);
+    log(`${req_id} ⮞ »${query}« search`);
+    if (!query.length) return $el.set_options_from_visited(req_id);
+
     const promise = $el.get_result_promise(query, req_id);
+    $el._query = query;
     promise.then(res => $el.on_result(res));
+  }
+
+  /*
+    parse  = el -> db
+    format = db -> el
+
+    Override method for custom conversions
+  */
+
+  to_query(text) {
+    return text;
+  }
+
+  parse(text) {
+    return text.trim();
+  }
+
+  format(id) {
+    return id;
   }
 
   get_result_promise(query, req_id) {
@@ -343,6 +762,7 @@ class El extends HTMLElement {
     subsequent searches, regardless of if the search has concluded or not.
     */
 
+    // log(`Search for "${query}"`);
 
     if ($el._memory.has(query)) return $el._memory.get(query).then(res => ({
       ...res,
@@ -381,13 +801,14 @@ class El extends HTMLElement {
     if (res.error) $el._memory.delete(res.query);
 
 
-    // handle slow responses
-    if (res.req < $el._data.found.req) return; // Too late
+    // handle slow responses. There may be a newer req, but this is the most
+    // recent response.
+    if (res.req < $el._data.found.req) return;
 
     // Show result in order even if more is on the way
-    if (res.error) console.error(res.error);
-    else if (res.from_memory) log(res.query + ":", "got", res.count, "results from memory");
-    else log(res.query + ":", "got", res.count, "results in", res.speed / 1000, "seconds");
+    if (res.error) console.error(`${res.req} ⮞`, res.error);
+    else if (res.from_memory) log(`${res.req} ⮞ »${res.query}« got ${res.count} results from memory`);
+    else log(`${res.req} ⮞ »${res.query}« got ${res.count} results in ${res.speed / 1000} seconds`);
 
     $el._data.found = res;
 
@@ -398,6 +819,19 @@ class El extends HTMLElement {
       $el.show_error();
     }
 
+
+
+    // const $inp = $el._$inp;
+    // const pos1 = $inp.selectionStart;
+    // const pos2 = $inp.selectionEnd;
+    // const txt = $inp.value;
+    // log("autocomplete", $el._do_autocomplete ? "" : "SKIP",
+    // "latest query", $el._query, "this query", res.query,
+    // `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+
+
+    $el.maybe_autocomplete(res);
+    $el.auto_highlight(res.found[0]);
 
     await $el.prepare_options(res).catch(err => {
       res.error = err;
@@ -417,6 +851,7 @@ class El extends HTMLElement {
     // Since we allow async prepare. There may have come new search results
     // during the preparations.
 
+    // log("render_options");
     try {
       // $el.startViewTransition("render options",() =>
       $el.render_options({
@@ -427,6 +862,7 @@ class El extends HTMLElement {
         prepared_req: res.req, // Rendering
         previous_req: $el._rendered_req,
         has_focus: $el.has_focus(),
+        highlight: $el._highlighted_option,
       })
       // );
       $el._data.rendered = res;
@@ -436,24 +872,58 @@ class El extends HTMLElement {
       $el.show_error();
     }
 
-
-    $el.show_options()
+    // if ( $el._retain_opened && !res.from_memory ) $el.show_options()
+    if ($el.has_focus()) $el.show_options()
   }
 
-  set_options_from_history() {
-    const $el = this;
-    // log("Set opitons from history", $el.has_focus());
-    const req_id = ++$el._req_id;
-    $el.on_result({
-      count: 0,
-      first_req: 0,
-      found: [],
-      from_memory: true,
-      query: "",
-      speed: 0,
-      req: req_id,
-    });
+  // _visited_timer = null;
+  // debounced_visited_add(delay, query) {
+  //   const $el = this;
+  //   if ($el._visited_timer) clearTimeout($el._visited_timer);
+  //   $el._visited_timer = setTimeout(() => $el.visited_add(query), delay);
+  // }
 
+  _visited = [];
+  visited_add(id) {
+    const $el = this;
+
+    if (!id.length) return;
+
+    const visited = $el._visited;
+    const idx = visited.indexOf(id);
+    if (idx !== -1) visited.splice(idx, 1);
+    visited.unshift(id);
+    if (visited.length > $el._page_size) visited.langth = $el._page_size;
+
+    localStorage.setItem("jl-search_visited", JSON.stringify(visited));
+  }
+
+  set_options_from_visited(req_id) {
+    const $el = this;
+    // log("Set opitons from visited");
+
+    // Keep the render order even if visited list changes
+    const latest = [...$el._visited];
+    const rec = {
+      ...El.data_tmpl,
+      req: req_id,
+      query: "",
+      found: latest,
+      count: latest.length,
+      from_visited: true,
+    };
+
+    // $el._do_autocomplete = false;
+
+    $el.on_result(rec);
+  }
+
+  setup_visited() {
+    const $el = this;
+    const visited_raw = localStorage.getItem("jl-search_visited");
+    // log("setup visited", visited_raw );
+    if (!visited_raw) return;
+    $el._visited = JSON.parse(visited_raw);
   }
 
   async search() {
@@ -461,13 +931,77 @@ class El extends HTMLElement {
     throw Error("Don't know where to even begin")
   }
 
+  maybe_autocomplete(res) {
+    const $el = this;
+
+    if (!$el._do_autocomplete) return;
+    $el._do_autocomplete = false;
+
+    if ($el._query !== res.query) return;
+
+    const opt_id = res.found[0];
+    if (opt_id == null) return;
+
+    const $inp = $el._$inp;
+    const pos1 = $inp.selectionStart;
+    const pos2 = $inp.selectionEnd;
+    let text_base = $inp.value;
+
+    // Only autocomplete if positioned at the end
+    if (pos1 < pos2 || pos2 < text_base.length) return;
+
+    $el.autocomplete(text_base, opt_id);
+  }
+
+
+  autocomplete(base, opt_id) {
+    const $el = this;
+
+    // log("autocomplete", base, opt_id);
+
+    // Keep trailing spaces but format the rest
+    let text = $el.format(opt_id);
+    text += base.slice(text.length);
+
+    // The autocomplete must be in sync with current $inp value
+    $el.set_input(text, base.length, text.length, `autocomplete ${opt_id}`);
+  }
+
+  auto_highlight(id) {
+    const $el = this;
+    if ($el.parse($el._$inp.value) === id)
+      $el.highlight_option(id);
+    else
+      $el.highlight_option(null);
+  }
+
+  highlight_option(id) {
+    const $el = this;
+    log("Highlight", id);
+    $el._highlighted_option = id;
+    $el.render_highlight(id);
+  }
+
   prepare_options() {
     // override for async process of search result
     return Promise.resolve();
   }
 
+  render_highlight(id) {
+    const $el = this;
+
+    // Using indexes is not reliable since the rendering is async and may
+    // contain elements that are animating out. The specific item may not yet
+    // have been created. Highlight must also be applied in render_options()
+
+    const $ul = $el._$opts.querySelector("ul");
+    for (const $li of $ul.children) {
+      $li.ariaSelected = ($li.dataset.id === id);
+    }
+  }
+
   // override for custom layout
-  render_options({ found = [], error, count = 0, speed, query }) {
+  render_options(rec) {
     /*
     Callbacks for handling animations
 
@@ -484,6 +1018,8 @@ class El extends HTMLElement {
     */
 
     const $el = this;
+    const { found = [], error, count = 0, speed, query } = rec;
+
     const max = Math.min(found.length, $el._page_size);
     // log("render options from", found);
 
@@ -491,13 +1027,14 @@ class El extends HTMLElement {
 
     const added = [];
     const removed = [];
+    const highlight = rec.highlight;
 
     const $ul = $el.querySelector("ul");
     const children = [...$ul.children]
       .filter($li => (!$li.classList.contains('exit')));
     let i = 0;
     for (const $child of children) {
-      const val = $child.dataset.text;
+      const val = $child.dataset.id;
       // log("consider", $child);
       if ($child.classList.contains("exit")) console.warn("DANGER");
       while (i < max) {
@@ -510,7 +1047,8 @@ class El extends HTMLElement {
           break;
         } else if (order === +1) {
           // log("  insert", found[i], "before", val);
-          const $new = $el.render_item(found[i]);
+          const highlighted = found[i] === highlight;
+          const $new = $el.render_item(found[i], { highlighted });
           // $el.enter_before($new);
           $ul.insertBefore($new, $child);
           added.push($new);
@@ -526,7 +1064,8 @@ class El extends HTMLElement {
     // Append the rest of the items found
     for (let j = i; j < max; j++) {
       // log("append", found[j]);
-      const $new = $el.render_item(found[j]);
+      const highlighted = found[j] === highlight;
+      const $new = $el.render_item(found[j], { highlighted });
       // $el.enter_before($new);
       $ul.append($new);
       added.push($new);
@@ -555,7 +1094,7 @@ class El extends HTMLElement {
       // $el.exit_after();
     });
 
-    $el.render_feedback({ error, count, speed, query });
+    $el.render_feedback(rec);
   }
 
   async enter_anim_before(elements) {
@@ -607,17 +1146,19 @@ class El extends HTMLElement {
     });
   }
 
-  render_item(text) {
+  render_item(id, { highlighted }) {
     const $el = this;
     const $li = document.createElement("li");
-    $li.dataset.text = text;
+    $li.dataset.id = id;
+    $li.ariaSelected = highlighted;
     // $li.style.viewTransitionName = `jl-search-${$el._id}-li-${++$el._li_id}`;
-    $el.render_item_content($li, text);
+    $el.render_item_content($li, id);
     return $li;
   }
 
-  render_item_content($li, text) {
-    $li.innerText = text;
+  render_item_content($li, id) {
+    const $el = this;
+    $li.innerText = $el.format(id);
   }
 
   render_state(state) {
@@ -644,12 +1185,12 @@ class El extends HTMLElement {
     $el._$state.innerHTML = El.states[state][0];
   }
 
-  render_feedback({ error, count, speed, query }) {
+  render_feedback(rec) {
     // console.warn("render feedback", query);
     const $el = this;
-    if ($el._error) return $el.render_error(error);
+    if (rec.error) return $el.render_error(rec.error);
     $el._$feedback.classList.remove("error");
-    $el._$feedback.innerHTML = $el.get_feedback({ count, speed, query });
+    $el._$feedback.innerHTML = $el.get_feedback(rec);
   }
 
   render_error(error) {
@@ -658,40 +1199,39 @@ class El extends HTMLElement {
     $el._$feedback.innerHTML = $el.error_reason(error);
   }
 
-  get_feedback({ count, speed, query }) {
+  get_feedback(rec) {
     const $el = this;
+    if (rec.from_visited && rec.count) return "Showing options from search history";
     if ($el._searching) return "Fetching search result . . .";
-    if (!query.length) return "Try typing some letters";
-    if (count === 1) return `Found one measly result after ${speed / 1000} seconds`;
-    if (count > 0) return `Found ${numformat.format(count)} results in ${speed / 1000} seconds`;
-    return `Found absolutely nothing after searching for ${speed / 1000} seconds`;
+    if (!rec.query?.length) return "Try typing some letters";
+    if (rec.count === 1) return `Found one measly result after ${rec.speed / 1000} seconds`;
+    if (rec.count > 0) return `Found ${numformat.format(rec.count)} results in ${rec.speed / 1000} seconds`;
+    return `Found absolutely nothing after searching for ${rec.speed / 1000} seconds`;
   }
 
   async show_options() {
     const $el = this;
+    // console.warn("opening");
 
     if ($el.hasAttribute("opened") && !$el.dataset.anim) return;
 
     // The process can change direction at any time
     $el.dataset.anim = "opening";
 
-    // console.warn("OPEN options", $el._data.found.found.length);
+    // log("show_options caps");
     await caps.popover;
     await caps.anchor_positioning; // wait on slow polyfill loads
     if ($el.dataset.anim !== "opening") return;
 
-    // Firefox popover animation workaround
-    // $el._$opts.style.animationIterationCount = "1";
-
-    log("show_options set opened");
+    // log("show_options set opened");
     await $el.toggle_options(true);
     if ($el.dataset.anim !== "opening") return;
+    delete $el.dataset.anim;
 
     // May have changed async
-    log("show_options popover");
+    // log("show_options popover");
     $el._$opts.togglePopover(true);
 
-    delete $el.dataset.anim;
   }
 
   async toggle_options(force) {
@@ -713,22 +1253,25 @@ class El extends HTMLElement {
     }
   }
 
+
+  _transitions = new Set();
+  _transitions_resolve = null;
   startViewTransition(label, fn) {
     if (!document.startViewTransition) return fn();
     const $el = this;
 
     const transition = document.startViewTransition(fn);
-    log("view transition", label);
+    // log("view transition", label);
 
     if (!$el._transitions.size) {
-      log("adding global_onclick listener");
+      // log("adding global_onclick listener");
       document.addEventListener("click", global_onclick);
       const done = new Promise(resolve => {
         $el._transitions_resolve = resolve;
       });
 
       done.then(() => {
-        log("all view transition finished");
+        // log("all view transition finished");
         if ($el._transitions.size) throw Error("nor really done");
 
         document.removeEventListener("click", global_onclick);
@@ -744,7 +1287,7 @@ class El extends HTMLElement {
 
           if ($el.contains($target)) continue;
 
-          log("replay event to", $target.tagName);
+          // log("replay event to", $target.tagName);
           $target.dispatchEvent(ev);
         }
       });
@@ -754,7 +1297,7 @@ class El extends HTMLElement {
 
     return transition.finished.then(() => {
       $el._transitions.delete(transition);
-      log("view transition", label, "finished");
+      // log("view transition", label, "finished");
       if ($el._transitions.size) return;
       $el._transitions_resolve();
     });
@@ -762,25 +1305,33 @@ class El extends HTMLElement {
 
   async hide_options() {
     const $el = this;
-    // log("hide");
+    // log("closing");
 
     if (!$el.hasAttribute("opened") && !$el.dataset.anim) return;
 
     // The process can change direction at any time
     $el.dataset.anim = "closing";
 
-    log("hide_options popver");
+    // log("hide_options popver");
     const closed = $el._$opts.get_close_promise();
     await closed;
 
     if ($el.dataset.anim !== "closing") return;
     $el._$opts.hidePopover();
+    delete $el.dataset.anim;
 
-    log("hide_options set closed");
+    // log("hide_options set closed");
     await $el.toggle_options(false);
 
-    log("hide_options done");
-    delete $el.dataset.anim;
+    // log("hide_options done");
+  }
+
+  revert() {
+    const $el = this;
+    // Restore original value. For now, same as removing value
+    $el._$inp.value = "";
+    log(`»« reverted`)
+    $el.handle_search_input("");
   }
 
   show_error() {
@@ -832,28 +1383,46 @@ class El extends HTMLElement {
     $inp.focus();
   }
 
-  async connectedCallback() {
+  connectedCallback() {
     const $el = this;
     // super.connectedCallback();
     // log("connected", $el._$inp.disabled);
 
-    const $inp = $el._$inp;
+    // const $inp = $el._$inp;
 
     /*
      Possibly add setup(), init(), onReady(), config() or similar
      */
+
+    $el._ev.document = {
+      selectionchange: ev => $el.on_selectionchange(ev),
+    }
+
+    for (const [type, listener] of Object.entries($el._ev.document)) {
+      document.addEventListener(type, listener);
+    }
 
 
     //Wait on other modules adding callbacks
     if (!$el._$inp.disabled) $el.first_input();
   }
 
+  disconnectedCallback() {
+    const $el = this;
+    for (const [type, listener] of Object.entries($el._ev.document)) {
+      document.removeEventListener(type, listener);
+    }
+
+  }
+
   async first_input() {
     const $el = this;
     const $inp = $el._$inp;
 
-    if (!navigator.userActivation.hasBeenActive)
-      $inp.setSelectionRange(0, $inp.value.length);
+    if (!navigator.userActivation.hasBeenActive) {
+      $el.input_select();
+      log($el.input_debug($inp.value, 0, $inp.value.length, "first_input"))
+    }
 
     await caps.loaded;
     await $el.regain_focus(); // only conditionally
@@ -863,11 +1432,43 @@ class El extends HTMLElement {
     $el.update_state();
     $el._input_ready = true;
 
-    if ($inp.value.length) $el.handle_search_input($inp.value);
+    $el.handle_search_input($inp.value);
   }
 
   error_reason(error = this._error) {
     return error?.message ?? "Got an ouchie";
+  }
+
+  get value() {
+    const $el = this;
+    // Differ between db and el value. See parse/format. The standard
+    // setFormValue() does differentiate these, but are using "state" for the
+    // user version of the value and "value" for the sanitized version to be
+    // sent to the server.
+
+    return $el.parse(this._$inp.value);
+  }
+
+
+  // visited_get(query) {
+  //   const $el = this;
+  //   if ($el._visited.has(query)) return $el._visited.get(query);
+
+  //   const q = {
+  //     query,
+  //     latest: null,
+  //     times: 0,
+  //   };
+  //   $el._visited.set(query, q);
+
+  //   const queries = $el._visited_queries;
+  //   const index = queries.findIndex(str => str > query);
+  //   queries.splice(index === -1 ? queries.length : index, 0, query);
+  //   return q;
+  // }
+
+  css_var(name) {
+    return getComputedStyle(this).getPropertyValue("--_" + name);
   }
 
   static spinner = `

@@ -21,6 +21,8 @@
     --outline-color: var(--c-outline, gray);
     --input-bg: var(--c-surface-bright);
     --input-ink: var(--c-on-surface);
+    --selected-bg: var(--c-tertiary-container);
+    --selected-ink: var(--c-on-tertiary-container);
     --hover-color: var(--c-on-surface, black);
     --focus-color: var(--c-primary, green);
     --focus-bg: var(--c-surface-dim, lightgray);
@@ -176,6 +178,8 @@
 
   ul>li>img {
     object-fit: cover;
+    /* Center top works much better than golden ratio for most wikipedia image
+    thumbs */
     object-position: center top;
     grid-row: span 2;
     width: 100%;
@@ -186,8 +190,9 @@
   }
 
   ul>li>img.default {
-    filter: blur(3px);
-    opacity: .5;
+    filter: blur(2px);
+    opacity: .3;
+    outline: none;
   }
 </style>
 <script type="module">
@@ -204,7 +209,7 @@
   $jl_inp.search = async function search({ query, req_id }) {
     if (query === "i am lying") throw Error("BOOM");
 
-    const query_out = encodeURIComponent(query.replaceAll(" ", "_"));
+    const query_out = encodeURIComponent(query);
     let opts = "?" + ($delay.checked ? "delay=300" : "");
     const res = await fetch(url_search + query_out + opts);
     const json = await res.json();
@@ -278,7 +283,7 @@
 
   $jl_inp.render_item_content = ($li, name) => {
     const rec_p = recs.get(name);
-    const title = name.replaceAll("_", " ");
+    const title = $jl_inp.format(name);
 
     const $img = document.createElement("img");
     const $title = document.createElement("b");
@@ -296,13 +301,62 @@
         $img.src = rec.thumbnail.source;
         $img.classList.remove("default");
       }
-    });
+    }).catch(err=>{
+      console.warn("Failed to get", name, err);
+    })
   }
+
+  $jl_inp.to_query = text => $jl_inp.parse(text).toLowerCase();
+
+  // Keeping trailing space allows search for word break
+  $jl_inp.parse = text => text.trimStart().replaceAll(/\s+/g, "_");
+
+  $jl_inp.format = id => id.replaceAll("_", " ");
 
   function sleep(time) {
     return new Promise(resolve => setTimeout(resolve, time));
   }
 
+  $jl_inp.addEventListener("change", async ev => {
+    const title = $jl_inp.value;
+    // log("handling change event");
+    const $art = document.querySelector("article");
+
+    // Skip fadeout if this is the first article shown
+    const fade_out = $art.hidden
+      ? Promise.resolve()
+      : $art.animate([{ opacity: 1 }, { opacity: 0 }], 500);
+
+    const rec = await get_rec(title);
+
+    // Start loading image while fadeout animates
+    const $img = document.createElement("img");
+    const img_loaded = new Promise((resolve, reject) => {
+      if( !rec.thumbnail ) return resolve();
+      $img.src = rec.thumbnail.source;
+      $img.onload = resolve;
+      $img.onerror = reject;
+    });
+
+    await fade_out.finished;
+    $art.style.opacity = 0;
+
+    $art.hidden = false;
+    document.querySelector("article figure").hidden = !rec.thumbnail;
+    document.querySelector("article img").replaceWith($img);
+    document.querySelector("article h1").innerHTML = rec.titles.display;
+    document.querySelector("article summary").innerHTML = rec.extract_html;
+    document.querySelector("article figcaption").innerHTML = rec.description ?? "";
+    document.querySelector("article > a").href = rec.content_urls.desktop.page;
+
+    await img_loaded; // start fade in after image loaded
+    const fade_in = $art.animate([{ opacity: 0 }, { opacity: 1 }], 500);
+    await fade_in.finished;
+    $art.style.opacity = 1;
+  });
+
+
+  document.querySelector("form").onsubmit = () => false;
 
 </script>
 
@@ -349,6 +403,8 @@
     font-size: 2rem;
     font-variation-settings: 'FILL' 1;
     cursor: pointer;
+    filter: drop-shadow(0 0 2px yellow);
+    z-index: 1;
   }
 
   nav.theme-switch::before {
@@ -401,6 +457,53 @@
     display: flex;
     align-items: center;
   }
+
+  article {
+    view-transition-name: article;
+  }
+
+  figure {
+    float: left;
+    margin: 0 1em 0 0;
+    padding: 1em;
+    border: var(--border-width) color-mix(in oklch, var(--outline-color), transparent 80%) solid;
+    width: min-content;
+    display: none;
+    background: var(--c-surface-container-highest);
+  }
+
+  figure:has(img[src]) {
+    display: block;
+    box-sizing: border-box;
+  }
+
+  figcaption {
+    text-align: center;
+    font-size: .8em;
+  }
+
+  article>a {
+    font-size: 1.5em;
+    float: right;
+  }
+
+  article>a::after {
+    content: "arrow_forward";
+    font-family: 'Material Symbols Outlined';
+    vertical-align: bottom;
+  }
+
+  @media (max-width: 40rem) {
+    figure {
+      float: none;
+      margin: 1em 0;
+      width: 100%;
+    }
+
+    article img {
+      width: 100%;
+    }
+  }
 </style>
 <form>
   <label for="delay">Slow down</label>
@@ -434,6 +537,14 @@
 
   <!-- <label for="name">Name</label>
   <input name="name"> -->
-
-  <p style="grid-column: span 2">Work in progress...</p>
 </form>
+
+<article hidden>
+  <figure>
+    <img>
+    <figcaption></figcaption>
+  </figure>
+  <h1></h1>
+  <summary></summary>
+  <a>read more</a>
+</article>
