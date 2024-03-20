@@ -222,7 +222,7 @@ https://css-tricks.com/using-absolute-value-sign-rounding-and-modulo-in-css-toda
 
 input{
 	font-size: 1em;
-	line-height: var(--lineheight);
+	line-height: var(--line-height);
 	padding: var(--padding);
 	border-radius: var(--border-radius);
 	border: 0;
@@ -255,9 +255,10 @@ input[type="checkbox"]{
 	place-content: center;
 	appearance: none;
 
+	/* line-height: 1; */
 	font-size: 1em;
-	width: calc(var(--lineheight) *1em);
-	height: calc(var(--lineheight) *1em);
+	width: calc(var(--line-height) *1em);
+	height: calc(var(--line-height) *1em);
 	margin: var(--padding);
 }
 input[type="checkbox"]:focus-visible{
@@ -271,7 +272,7 @@ input[type="checkbox"]:checked {
 
 input[type="checkbox"]::before {
 	line-height: 1;
-	font-size: calc(var(--lineheight) *1em);
+	font-size: calc(var(--line-height) *1em);
 }
 
 
@@ -285,3 +286,29 @@ input[type="range"]:focus::-webkit-slider-thumb {
   outline: var(--border-width-focus) solid var(--focus-color);
   outline-offset: .125rem;
 }
+
+/*
+NOTES:
+https://material-web.dev/
+https://oklch.com/#73.40931506848489,0.3563,81.72,100
+https://material-components.github.io/material-components-web-catalog/#/component/text-field
+https://open-props.style/
+https://getbootstrap.com/docs/5.3/forms/form-control/
+https://tailwindui.com/components/application-ui/forms/input-groups
+https://fonts.google.com/icons
+https://fonts.google.com/noto/specimen/Noto+Emoji?query=noto+emoji
+
+
+## Align unicode or svg with material symbols
+width: 1em;
+height: 1em;
+display: flex;
+justify-content: center;
+align-items: center;
+
+## Special adjustment for wider characters
+width: 1.25em;
+height: 1.25em;
+font-size:.8em;
+
+*/

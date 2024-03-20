@@ -63,6 +63,7 @@ class El extends HTMLElement {
    * @property {number} speed The speed of the search operation.
    * @property {RequestId} req The request identifier as an integer.
    * @property {number|null} [req_sent] epoch timestamp
+   * @property {opt_id|null} [highlighted] option to highlight
    */
 
   _id = ++element_id;
@@ -91,10 +92,11 @@ class El extends HTMLElement {
   /**  Latest running query
    * @type {string|null}
    */
+  _input = "";
   _query = null;
 
   /** Number of items in options list
-   * @type {number]
+   * @type {number}
    *
    * @remarks  Size of 8 is small enough for both nitive load and mobile
    * screen size for the double-row layout. But its far to small for the
@@ -106,10 +108,12 @@ class El extends HTMLElement {
    */
   _page_size = 8;
 
-  _highlighted_option = null; // The option that will be selected by `enter`
+  _highlighted_option = null; // The opt_id that will be selected by `enter`
+  _selected_option = null; // the selected opt_id
   _retain_opened = true; // User wants options opened
 
-  /** Search response data */
+  /* Search response data */
+  /** @ignore */
   static data_tmpl = {
     found: [], // matches returned
     count: 0, // total matches
@@ -123,7 +127,7 @@ class El extends HTMLElement {
     from_visited: false, // previously selected options
   };
 
-  /** Separating found vs rendered search results since they could be async */
+  /* Separating found vs rendered search results since they could be async */
   _data = {
     received: { ...El.data_tmpl },
     prepared: { ...El.data_tmpl },
@@ -173,6 +177,7 @@ class El extends HTMLElement {
     // log("setup_dom");
 
     // Not handling DOM mutations in this implementation
+    $el._$main = $el.$$("main");
     $el._$inp = $el.$$("input");
     $el._$opts = $el.$$("nav");
     $el._$field = $el.$$("fieldset");
@@ -182,6 +187,7 @@ class El extends HTMLElement {
     // TODO: react on replaced input or input attributes. Remember our own
     // attributes
     $el.setup_$el();
+    $el.setup_$main();
     $el.setup_$inp();
     $el.setup_$field();
     $el.setup_$opts();
@@ -194,8 +200,6 @@ class El extends HTMLElement {
   setup_$field() {
     const $el = this;
     const $field = $el._$field;
-    const name = $el.constructor.is;
-    if (!$field.id) $field.setAttribute("id", `${name}-anchor-${$el._id}`);
     // log("setup label", $field);
 
     $el._ev.field = {
@@ -205,42 +209,65 @@ class El extends HTMLElement {
     for (const [type, listener] of Object.entries($el._ev.field)) {
       $field.addEventListener(type, listener);
     }
+  }
+
+  setup_$main() {
+    const $el = this;
+    const $main = $el._$main;
+    $main.setAttribute("popover", "manual");
+    $main.setAttribute("anchor", $el.id);
+    caps.popover.then(() => {
+      $main.classList.add("loaded-popover");
+      // $opts.style.animationIterationCount = "0";
+    });
 
     if (caps.missing.anchor_positioning) {
       let x = 0,
         y = 0,
         w = 0,
         h = 0,
+        p = "absolute",
         run = false;
 
-      $el._ev.field_raf_start = () => {
+      $el._ev.main_raf_start = () => {
         run = true;
         // log("starting raf");
         requestAnimationFrame(raf);
       };
 
-      $el._ev.field_raf_stop = () => {
+      $el._ev.main_raf_stop = () => {
         run = false;
-        // log("stopping raf");
+        $el.render_position_clear($el._$main);
       };
+
+      /*
+        doing requestAnimationFrame rather that MutationObserver would seem
+        like overkill, but the position measurment adds up to about 12
+        microseconds per frame and seems like less job than a mutation
+        observer since it would likely trigger on all the changes in the dom
+        duting list population. The getComputedStyle($main).position part is
+        unfortunate and adds an additional 60 microseconds per frame. 
+      */
 
       const raf = () => {
         if (
-          window.scrollY + $field.offsetTop === y &&
-          window.scrollX + $field.offsetLeft === x &&
-          $field.offsetWidth === w &&
-          $field.offsetHeight === h
+          window.scrollY + $main.offsetTop === y &&
+          window.scrollX + $main.offsetLeft === x &&
+          $main.offsetWidth === w &&
+          $main.offsetHeight === h &&
+          getComputedStyle($main).position === p
         )
           return requestAnimationFrame(raf);
 
         if (!run) return;
 
         // log("field position changed");
-        x = window.scrollX + $field.offsetLeft;
-        y = window.scrollY + $field.offsetTop;
-        w = $field.offsetWidth;
-        h = $field.offsetHeight;
-        $el.render_position_below($el._$opts, $field);
+        x = window.scrollX + $main.offsetLeft;
+        y = window.scrollY + $main.offsetTop;
+        w = $main.offsetWidth;
+        h = $main.offsetHeight;
+        p = getComputedStyle($main).position;
+        $el.render_position_at($main, $el);
         requestAnimationFrame(raf);
       };
     }
@@ -249,15 +276,9 @@ class El extends HTMLElement {
   setup_$opts() {
     const $el = this;
     const $opts = $el._$opts;
+    const $main = $el._$main;
 
-    $opts.setAttribute("popover", "manual");
-    $opts.setAttribute("anchor", $el._$field.id);
     $opts.classList.add("empty");
-
-    caps.popover.then(() => {
-      $opts.classList.add("loaded-popover");
-      // $opts.style.animationIterationCount = "0";
-    });
 
     let open_promise = null;
     let open_resolve;
@@ -265,7 +286,7 @@ class El extends HTMLElement {
       // Can't use only :popover-open since it might not have finished open?
       // Or did I miss something
       // if ($opts.matches(":popover-open") && $opts.offsetParent) {
-      if ($opts.matches(":popover-open")) return Promise.resolve();
+      if ($main.matches(":popover-open")) return Promise.resolve();
 
       // Are we animating? Since support for computedStyleMap is limited, we
       // just check for the default value of "0s" for no animation.
@@ -286,7 +307,7 @@ class El extends HTMLElement {
     let close_promise = null;
     let close_resolve;
     $opts.get_close_promise = () => {
-      if (!$opts.matches(":popover-open")) return Promise.resolve();
+      if (!$main.matches(":popover-open")) return Promise.resolve();
 
       if (close_promise) return close_promise;
 
@@ -303,7 +324,6 @@ class El extends HTMLElement {
 
     const on_transitionend = (ev) => {
       if (ev.target !== $opts) return; // Ignore transition from children
-      if (ev.propertyName === "box-shadow") return;
       // log("transition", ev);
 
       if ($el.dataset.anim === "opening") {
@@ -324,6 +344,13 @@ class El extends HTMLElement {
 
       // log("transition", ev.target, ev);
     };
+
+    const $ul = $opts.querySelector("ul");
+    if ($ul) {
+      // Late renders should do this themself
+      $ul.role = "listbox";
+      $ul.ariaLabel = "options";
+    }
 
     $el._ev.opts = {
       transitionend: on_transitionend,
@@ -387,6 +414,9 @@ class El extends HTMLElement {
 
   setup_$el() {
     const $el = this;
+    const name = $el.constructor.is;
+    if (!$el.id) $el.setAttribute("id", `${name}-anchor-${$el._id}`);
+
     $el._ev.el = {
       focusout: (ev) => $el.on_focusout(ev),
       mousedown: (ev) => $el.on_mousedown(ev),
@@ -411,9 +441,10 @@ class El extends HTMLElement {
 
     // log($el.input_debug($inp.value, 0, $inp.value.length, "first_input"))
 
-    $el.update_state();
     $el._input_ready = true;
-
+    $el.update_state();
+    // log("input_ready");
+    $el._input = $inp.value;
     $el.handle_search_input($inp.value);
   }
 
@@ -427,7 +458,7 @@ class El extends HTMLElement {
   attributeChangedCallback(name, val_old, val_new) {
     // log("attribute changed", name, `"${val_old}" => "${val_new}"`);
     if (name === "opened") return void this.changed_opened(val_new);
-    if (name === "selected") return (this.value = val_new);
+    if (name === "selected") return void this.changed_selected(val_new);
   }
 
   changed_opened(val_new) {
@@ -445,6 +476,15 @@ class El extends HTMLElement {
       $el.dataset.anim = "closing";
       $el.hide_options();
     }
+  }
+
+  changed_selected(opt_id) {
+    const $el = this;
+    if ($el._selected_option === opt_id) return;
+    // log("Change selected from", $el._selected_option, "to", opt_id);
+
+    $el.set_selected(opt_id);
+    $el.dispatchEvent(new Event("change"));
   }
 
   async on_state_click(ev) {
@@ -499,38 +539,68 @@ class El extends HTMLElement {
     const $el = this;
     // log("before_input", ev.inputType, ev.data);
 
-    // Since mobile browser often miss the text-selection status, we will
-    // handle events here if possible. See autocomplete()
+    // Since mobile browser often miss the text-selection status (because it's
+    // done async), we will handle events here if possible. See
+    // autocomplete().
 
     this._do_autocomplete = true;
     const $inp = $el._$inp;
     const txt = $inp.value;
-    const pos1 = $inp.selectionStart;
-    const pos2 = $inp.selectionEnd;
-    // log(ev.inputType, `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+    const pos1a = $el._pos1;
+    const pos2a = $el._pos2;
+    const pos1b = $inp.selectionStart;
+    const pos2b = $inp.selectionEnd;
+    // log(ev.inputType, `»${txt}«(${txt.length}) [${pos1a},${pos2a}]→[${pos1b},${pos2b}]`, ev);
 
     switch (ev.inputType) {
       case "insertText":
+      case "insertFromPaste":
       case "insertReplacementText": {
-        const pos = pos1 + ev.data.length;
-        const txt_new = txt.slice(0, pos1) + ev.data + txt.slice(pos2);
-        $el.set_input(txt_new, pos, pos, ev.inputType);
+        const pos1 = pos1a + ev.data.length;
+        const txt_new = txt.slice(0, pos1a) + ev.data + txt.slice(pos2a);
+        $el.set_input(txt_new, pos1, pos1, ev.inputType);
+        $el.handle_search_input(txt_new);
         break;
       }
       case "deleteContentBackward": {
-        // The browser usually selects the char to be deleted. No need to step
-        // back.
-        let pos1a = pos1 < pos2 ? pos1 : Math.max(pos1 - 1, 0);
-        const txt_new = txt.slice(0, pos1a) + txt.slice(pos2);
-        $el.set_input(txt_new, pos1a, pos1a, ev.inputType);
+        // The browser selects the chars to be deleted. But also often hasn't
+        // noticed autocomplete selection. It will even get confused about the
+        // length and position of deletion separately. A virtual keyboard
+        // autocorrect will be given as a deleteContentBackward followed by a
+        // InsetText.
+
+        let pos1;
+        if (pos2a === pos2b && pos1b < pos1a) pos1 = pos1b;
+        else pos1 = Math.max(pos1a - 1, 0);
+        let pos2 = pos1;
+        let txt_new = txt.slice(0, pos1) + txt.slice(pos2a);
+        $el.handle_search_input(txt_new);
+
+        // Instead of just waiting for the search result, do the autocomplete
+        // with what we have, as to eliminate flickering completion text on
+        // backspace.
+        const opt_text = $el.format($el._data.received.found[0] ?? "");
+        if (
+          pos2a === txt.length &&
+          pos1a > 0 &&
+          $el.hasAttribute("autocomplete") &&
+          opt_text.startsWith(txt_new)
+        ) {
+          txt_new = opt_text;
+          pos2 = opt_text.length;
+          $el._do_autocomplete = false;
+        }
+
+        $el.set_input(txt_new, pos1, pos2, ev.inputType);
         break;
       }
       case "deleteByCut":
       case "deleteContent":
       case "deleteContentForward": {
-        let pos2b = pos1 < pos2 ? pos2 : pos2 + 1;
-        const txt_new = txt.slice(0, pos1) + txt.slice(pos2b);
-        $el.set_input(txt_new, pos1, pos1, ev.inputType);
+        let pos2 = pos2a < pos2b ? pos2b : pos2a + 1;
+        const txt_new = txt.slice(0, pos1a) + txt.slice(pos2);
+        $el.set_input(txt_new, pos2, pos2, ev.inputType);
+        $el.handle_search_input(txt_new);
         break;
       }
       default: {
@@ -539,113 +609,27 @@ class El extends HTMLElement {
       }
     }
 
+    // log("prevent default", ev);
+    $el.set_selected(null);
     ev.preventDefault();
+
     if (!$el._input_ready) return;
     $el._retain_opened = true;
-    $el.handle_search_input($inp.value);
   }
 
   on_input(ev) {
     const $el = this;
-
     const $inp = $el._$inp;
-    let txt = $inp.value;
 
-    /*
-      Autocompletion with the completion text being inserted ans selected
-      after the user input. Tried to make it work, even with compensating for
-      async changes from mobile virtual keyboards or Input Method Editors. But
-      even while keeping track of the autocompletion texts, there are still
-      some situations where I cna't know for sure if a specific input was
-      faulty because of a race condition.
+    // Chrome proceeds with input event even if we handled it in beforeinput.
+    // Probably because it's async. Revert unexpected async changes here.
 
-      No wonder that the Google search field stopped using this form of
-      autocompletion. I will have to resign to not using autocompletion with
-      these input methods.
-
-      So instead, autocomplete will be default off and only used in the
-      precence of keyboard events that is not "Unidentified".
-      */
-
-    // Virtual keyboards will not send keydown events. Check here if selection
-    // was deleted, so that we dont just add it back again.
-
-    /*
-    // Also skip autcomplete if last character was deleted, since backspace
-    // can not be listened to on virtual keyboards. This do not apply on
-    // desktop.
-
-    if ($el._pos1 === $el._pos2 && $el._pos1 === txt.length + 1) {
-      log("mobile backspace");
-      $el._do_autocomplete = false;
+    if ($inp.value !== $el._input) {
+      // console.warn("on_input", $el._pos_persist?"PERSIST":"", $inp.value, "=>", $el._input);
+      $inp.value = $el._input;
     }
-
-    // Mobile virtual keyboards async input may send input after de-selecting
-    // or not yet recting on selection, causing the selected text to not be
-    // removed.
-
-    // Keyboard ADD to end with no selection
-    if ($el._pos_persist
-      && $el._pos1 < $el._pos2
-      && $el._pos2 === $el._txt_cur.length
-      && txt.length > $el._pos2
-      && txt.startsWith($el._txt_cur)
-    ) {
-      const txt_added = txt.slice($el._pos2);
-      const txt_base = txt.slice(0, $el._pos1);
-      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
-      log("##### Correcting text ADD END for missing selection");
-      txt = $el._txt_cur = $inp.value = txt_base + txt_added;
-    }
-
-    // Keyboard ADD to middle with no selection
-    if ($el._pos_persist
-      && $el._pos1 < $el._pos2
-      && $el._pos2 === $el._txt_cur.length
-      && txt.length > $el._pos2
-      && txt.startsWith($el._txt_cur.slice(0, $el._pos1))
-      && txt.endsWith($el._txt_cur.slice($el._pos1))
-    ) {
-      const txt_base = txt.slice(0, $el._pos1);
-      const txt_added = txt.slice($el._pos1, txt.length - $el._pos2);
-      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
-      log("##### Correcting text input ADD MIDDLE for missing selection");
-      txt = $el._txt_cur = $inp.value = txt_base + txt_added;
-    }
-
-    // Keyboard BACKSPACE from end with no selection
-    if ($el._pos_persist
-      && $el._pos1 < $el._pos2
-      && $el._pos2 === $el._txt_cur.length
-      && txt.length === $el._pos2 - 1
-      && txt === $el._txt_cur.slice(0, -1)
-    ) {
-      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
-      log("##### Correcting text backspace END for missing selection");
-      txt = $el._txt_cur = $inp.value = $el._txt_cur.slice(0, $el._pos1 - 1);
-    }
-
-    // Keyboard BACKSPACE from middle with no selection
-    if ($el._pos_persist
-      && $el._pos1 < $el._pos2
-      && $el._pos2 === $el._txt_cur.length
-      && txt.length === $el._pos2 - 1
-      && txt === $el._txt_cur.slice(0, $el._pos1 - 1) + $el._txt_cur($el._pos1)
-    ) {
-      log($el.input_debug(txt, $inp.selectionStart, $inp.selectionEnd, "HICKUP"));
-      log("##### Correcting text backspace MIDDLE for missing input change");
-      txt = $el._txt_cur = $inp.value = txt.slice(0, $el._pos1 - 1);
-    }
-    */
-
-    $el._pos1 = $inp.selectionStart;
-    $el._pos2 = $inp.selectionEnd;
-    log($el.input_debug(txt, $el._pos1, $el._pos2, "on_input"));
-
-    if (!$el._input_ready) return;
-    $el._retain_opened = true;
-
-    $el.handle_search_input($el._$inp.value);
+    ev.preventDefault();
+    return;
   }
 
   on_change(ev) {
@@ -713,9 +697,9 @@ class El extends HTMLElement {
     //   `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
 
     // Workaround for browsers some times losing the selected text.
-    if ($el._pos_persist && pos1 === pos2 && pos2 === txt.length) {
+    if ($el._pos_persist) {
       $inp.setSelectionRange($el._pos1, $el._pos2);
-      log($el.input_debug(txt, $el._pos1, $el._pos2, "RE-SELECTED"));
+      // log($el.input_debug(txt, $el._pos1, $el._pos2, "RE-SELECTED"));
       return;
     }
 
@@ -728,6 +712,9 @@ class El extends HTMLElement {
     if (pos2 === txt.length && pos1 > 0) {
       const txt_prefix = txt.slice(0, pos1);
       // log($el.input_debug(txt, pos1, pos2, "on_select -> search START"));
+
+      if (pos1 < pos2) $el.set_selected(null);
+
       return $el.handle_search_input(txt_prefix);
     } else {
       // log($el.input_debug(txt, pos1, pos2, "on_select -> search WHOLE"));
@@ -759,6 +746,7 @@ class El extends HTMLElement {
 
     ev.preventDefault();
     $el._do_autocomplete = true;
+    $el.set_selected(null);
     $el.handle_search_input($inp.value);
   }
 
@@ -871,7 +859,7 @@ class El extends HTMLElement {
 
   set_input(text, pos1, pos2, reason) {
     const $el = this;
-    $el._$inp.value = text;
+    $el._$inp.value = $el._input = text;
     $el.input_select(pos1, pos2);
     // log($el.input_debug(text, pos1, pos2, reason));
   }
@@ -880,9 +868,30 @@ class El extends HTMLElement {
    * @param {opt_id} opt_id
    */
   set value(opt_id) {
+    this.set_selected(opt_id);
+    // const $el = this;
+    // const txt = $el.format(opt_id);
+    // $el._$inp.value = $el._input = txt;
+    // $el._pos1 = $el._pos2 = txt.length;
+    // $el.handle_search_input(txt);
+  }
+
+  set_selected(opt_id) {
     const $el = this;
+    if (!opt_id?.length) opt_id = null;
+    log("set_selected", opt_id);
+    $el._selected_option = opt_id; // before setAttribure, so we don't loop
+    if (opt_id === null) {
+      // console.warn("selected null");
+      return void $el.removeAttribute("selected");
+    }
+    $el.setAttribute("selected", opt_id);
+    $el.highlight_option(opt_id);
+
     const txt = $el.format(opt_id);
-    $el._$inp.value = txt;
+    if ($el._internals) $el._internals.setFormValue(opt_id, txt);
+
+    $el.set_input(txt, txt.length, txt.length, "selected");
     $el.handle_search_input(txt);
   }
 
@@ -963,10 +972,10 @@ class El extends HTMLElement {
 
   get_state() {
     const $el = this;
-    if (!$el._input_ready) return "loading";
     if ($el._searching) return "loading";
     if ($el._error) return "error";
     if ($el._$inp.disabled) return "closed";
+    if (!$el._input_ready) return "loading";
     if ($el.hasAttribute("opened")) return "opened";
     return "closed";
   }
@@ -1133,11 +1142,8 @@ class El extends HTMLElement {
     // mistakes, without too much confusion. Any subsequent input events will
     // update the options list.
 
-    const txt = $el.format(opt_id);
-    $el.set_input(txt, txt.length, txt.length, "selected");
-    $el.highlight_option(opt_id);
     $el.animate_field_flash();
-    $el.setAttribute("selected", opt_id);
+    $el.set_selected(opt_id);
     $el.dispatchEvent(new Event("change"));
     $el._$inp.blur();
   }
@@ -1165,30 +1171,68 @@ class El extends HTMLElement {
     // return if already opened and not about to change
     if ($el.hasAttribute("opened") && !$el.dataset.anim) return;
 
+    // ### 1. [opened] fieldset
+
     // The process can change direction at any time
     $el.dataset.anim = "opening";
 
     // log("show_options caps");
     await caps.popover;
-    // await caps.anchor_positioning; // wait on slow polyfill loads
     if ($el.dataset.anim !== "opening") return;
 
     // log("show_options set opened");
     await $el.toggle_options(true);
     if ($el.dataset.anim !== "opening") return;
     delete $el.dataset.anim;
-
     $el._$inp.scrollIntoViewIfNeeded();
+
+    // ### 2. :popover-open nav
 
     // May have changed async
     // log("show_options popover");
-    $el._$opts.togglePopover(true);
+    const $main = $el._$main;
+    $main.togglePopover(true);
+
+    // log("main", getComputedStyle($main).position);
+    // TODO: Only if not placed top center
+    if (caps.missing.anchor_positioning) {
+      // log("render", $el._$main, getComputedStyle($main).position, "at", $el);
+      $el.render_position_at($main, $el);
+      $el._ev.main_raf_start();
+    }
+
+    // log("show_options done");
+  }
+
+  async hide_options() {
+    const $el = this;
+    // log("closing");
+
+    // Return if already closed and not about to change
+    if (!$el.hasAttribute("opened") && !$el.dataset.anim) return;
+
+    // ### 1. :popover-open nav
+
+    // The process can change direction at any time
+    $el.dataset.anim = "closing";
+
+    // log("hide_options popver");
+    await $el._$opts.get_close_promise();
+
+    if ($el.dataset.anim !== "closing") return;
+    $el._$main.hidePopover();
 
     if (caps.missing.anchor_positioning) {
-      $el.render_position_below($el._$opts, $el._$field);
-      $el._ev.field_raf_start();
+      $el._ev.main_raf_stop();
     }
-    // log("show_options done");
+
+    // ### 2. [opened] fieldset
+
+    // log("hide_options set closed");
+    await $el.toggle_options(false);
+    delete $el.dataset.anim;
+
+    // log("hide_options done");
   }
 
   async toggle_options(force) {
@@ -1211,36 +1255,8 @@ class El extends HTMLElement {
     }
   }
 
-  async hide_options() {
-    const $el = this;
-    // log("closing");
-
-    // Return if already closed and not about to change
-    if (!$el.hasAttribute("opened") && !$el.dataset.anim) return;
-
-    // The process can change direction at any time
-    $el.dataset.anim = "closing";
-
-    // log("hide_options popver");
-    await $el._$opts.get_close_promise();
-
-    if ($el.dataset.anim !== "closing") return;
-    $el._$opts.hidePopover();
-
-    if (caps.missing.anchor_positioning) {
-      $el._ev.field_raf_stop();
-    }
-
-    // log("hide_options set closed");
-    await $el.toggle_options(false);
-    delete $el.dataset.anim;
-
-    // log("hide_options done");
-  }
-
   /** Open options list dropdown */
   open() {
-    // this._retain_opened = true;
     this.show_options();
   }
 
@@ -1256,6 +1272,7 @@ class El extends HTMLElement {
     const $el = this;
     $el._$inp.value = "";
     // log(`»« reverted`)
+    $el.set_selected(null);
     $el.handle_search_input("");
   }
 
@@ -1503,12 +1520,11 @@ class El extends HTMLElement {
 
     // $el._accepted = false;
     $el._error = null;
-    $el.removeAttribute("selected");
 
     const query = $el.to_query(txt);
 
     if (query === $el._query) {
-      log(`⮞ »${query}« unchanged`);
+      // log(`⮞ »${query}« unchanged`);
       $el.auto_highlight($el._data.rendered.found[0]);
       return;
     }
@@ -1614,7 +1630,7 @@ class El extends HTMLElement {
     });
 
     // Now only continue if we haven't rendered anything later
-    // log("timing", res.req, "compared to", $el._data.rendered.req);
+    // log("timing", res.req, "compared to rendered", $el._data.rendered.req, "and current", $el._req_id);
     if (res.req < $el._data.rendered.req) return;
 
     // Since we allow async prepare. There may have come new search results
@@ -1633,7 +1649,7 @@ class El extends HTMLElement {
       prepared_req: res.req, // Rendering
       previous_req: $el._rendered_req,
       // has_focus: $el.has_focus,
-      // highlight: $el._highlighted_option,
+      highlight: $el._highlighted_option,
     };
 
     // log("render_options");
@@ -1679,6 +1695,7 @@ class El extends HTMLElement {
 
     // The autocomplete must be in sync with current $inp value
     $el.set_input(text, base.length, text.length, `autocomplete ${opt_id}`);
+    $el.highlight_option(opt_id);
   }
 
   maybe_autocomplete(res) {
@@ -1775,6 +1792,7 @@ class El extends HTMLElement {
     const $ul = $el._$opts.querySelector("ul");
     for (const $li of $ul.children) {
       $li.ariaSelected = $li.dataset.id === opt_id;
+      $li.role = "option";
     }
   }
 
@@ -1955,14 +1973,29 @@ class El extends HTMLElement {
    * @param {HTMLElement} $target
    * @param {HTMLElement} $anchor
    */
-  render_position_below($target, $anchor) {
+  render_position_at($target, $anchor) {
+    // We use position absolute for placement relative $el and position
+    // fixed for placement relative viewport.
+
+    if (getComputedStyle($target).position === "fixed")
+      return void this.render_position_clear($target);
+
+    // log("Position", $target, "at", $anchor);
     const a_rect = $anchor.getBoundingClientRect();
-    const { width, bottom, left } = a_rect;
+    const { width, top, left } = a_rect;
+    // log("Position anchor to", { width, top, left });
     const t_style = $target.style;
-    // log("Position anchor to", { width, bottom, left });
     t_style.width = width + "px";
-    t_style.top = window.scrollY + bottom + "px";
+    t_style.top = window.scrollY + top + "px";
     t_style.left = window.scrollX + left + "px";
+  }
+
+  render_position_clear($target) {
+    const t_style = $target.style;
+    // log("Position CLEARED");
+    t_style.removeProperty("width");
+    t_style.removeProperty("top");
+    t_style.removeProperty("left");
   }
 
   /** Replace all all render callbacks with these if you prefer a Declarative
@@ -1995,6 +2028,38 @@ class El extends HTMLElement {
 
     for (const render of ["render_options"]) {
       $el[render] = () => render_sync($el, render);
+    }
+  }
+
+  static global_style_vars = {
+    "--jl-search_move-speed": ".25s",
+  };
+
+  static global_style_rules = `
+  ::view-transition-group(jl-search-field) {
+    animation-duration: var(--jl-search_move-speed);
+  }
+  
+  ::view-transition-old(jl-search-field),
+  ::view-transition-new(jl-search-field) {
+    height: 100%;
+  }
+  `;
+
+  async setup_global_styles() {
+    const cls = this.constructor;
+    const global = new CSSStyleSheet();
+    await global.replace( cls.global_style_rules );
+    document.adoptedStyleSheets.push(global);
+    // log("global styles", cls.global_style_rules);
+
+    const $doc = document.documentElement;
+    const root_style_computed = getComputedStyle($doc);
+
+    for (const css_var of Object.keys(cls.global_style_vars)) {
+      if (root_style_computed.getPropertyValue(css_var).length) continue;
+      const val = cls.global_style_vars[css_var];
+      $doc.style.setProperty(css_var, val);
     }
   }
 }
@@ -2065,16 +2130,6 @@ async function load_polyfill_popover() {
   caps.polyfilled.popover = true;
   await import("https://cdn.jsdelivr.net/npm/@oddbird/popover-polyfill@latest");
   return;
-
-  // Hack for handling the polyfill style specificity
-  // const popover_css = new CSSStyleSheet();
-  // await popover_css.replace(`
-  // [popover]:not(.\\:popover-open) {
-  //   height: 0;
-  //  }
-  // `);
-  // document.adoptedStyleSheets.push(popover_css);
-  // return;
 }
 
 async function load_polyfill_anchor_positioning() {
@@ -2120,7 +2175,7 @@ function load_polyfill_user_activation() {
   return Promise.resolve();
 }
 
-/** 
+/**
  * @param {number}
  * @returns {Promise}
  */

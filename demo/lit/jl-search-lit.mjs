@@ -6,7 +6,7 @@ import { classMap } from "https://para.se/2024/x/lit/directives/class-map.mjs";
 import { unsafeHTML } from "https://para.se/2024/x/lit/directives/unsafe-html.mjs";
 
 // eslint-disable-next-line no-unused-vars
-import { JlSearch, load_caps, sleep } from "../jl-search.mjs";
+import { JlSearch, load_caps, sleep } from "../../jl-search.mjs";
 
 // eslint-disable-next-line no-unused-vars
 const log = console.log.bind(console);
@@ -22,8 +22,6 @@ const LOADING = {};
 const symbol_font_url =
   "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=block";
 const symbol_font_promise = import_cssP(symbol_font_url);
-
-const $doc = document.documentElement;
 
 const url_search = "https://wiki.para.se:9071/s/";
 
@@ -216,6 +214,7 @@ class JlSearchWiki extends JlSearch {
     super();
     // log("Use shared request_render");
     this.use_mono_render(SHARED.render_sync, SHARED.render_async);
+    this.setup_global_styles();
   }
 
   connectedCallback() {
@@ -232,7 +231,7 @@ customElements.define(JlSearchWiki.is, JlSearchWiki);
 // Could use adoptedStyleSheets but not sure about if anchor_positioning
 // polyfill can handle it.
 const { pathname } = new URL(import.meta.url);
-const style_base = pathname.split("/").slice(0, -2).join("/");
+const style_base = pathname.split("/").slice(0, -3).join("/");
 
 class El extends LitElement {
   static is = "jl-search-wiki";
@@ -295,8 +294,10 @@ class El extends LitElement {
         ?loading-symbols=${!this._loaded_symbols}
         ?autocomplete=${this.autocomplete}
       >
-        <fieldset init>${this.h_fieldset()}</fieldset>
-        <nav>${this.h_nav()}</nav>
+        <main>
+          <fieldset init>${this.h_fieldset()}</fieldset>
+          <nav>${this.h_nav()}</nav>
+        </main>
       </jl-search>
     `;
   }
@@ -306,17 +307,15 @@ class El extends LitElement {
 
     let h_state = "",
       t_tip = "";
-    const state = $jls?.dataset.state;
+    const state = $jls?.dataset.state ?? "loading";
 
     if (state) {
-      const JLS = this.$jls.constructor;
       // log("get state html from", state, JLS.states[state]);
-      h_state = unsafeHTML(JLS.states[state][0]);
-      t_tip = $jls.get_tooltip(state);
+      h_state = unsafeHTML(JlSearchWiki.states[state][0]);
+      t_tip = $jls?.get_tooltip(state) ?? "";
     }
 
-    // log("input-id", this.inputId, this.getAttribute("input-id"), this.xyZ);
-
+    // log("render h_fieldstate", state);
     return html`
       <span class="symbol">dictionary</span>
       <input id=${this.inputId} placeholder="wikipedia articles" />
@@ -327,6 +326,7 @@ class El extends LitElement {
   h_nav() {
     const $jls = this.$jls;
     if (!$jls) return;
+    // log("render h_nav");
     // log("prepared", $jls._data.prepared);
 
     const res = $jls._data.prepared;
@@ -346,7 +346,7 @@ class El extends LitElement {
     return html`
       <section>
         <hr />
-        <ul>
+        <ul role="listbox" aria-label="options">
           ${found.map((opt) => this.h_item(opt))}
         </ul>
         <hr />
@@ -419,9 +419,6 @@ class El extends LitElement {
     const is_loading = !rec;
 
     return html`<p class=${classMap({ is_loading })}>${t_desc}</p>`;
-
-    // const rec = await rec_p;
-    return rec.description ?? "";
   }
 
   async firstUpdated() {
@@ -445,21 +442,7 @@ class El extends LitElement {
     this.requestUpdate();
   }
 
-  static style_var_default = {
-    "--jl-search_move-speed": "0.25s",
-  };
-
-  on_style() {
-    // Some variables has to be placed in :root
-    const root_style_computed = getComputedStyle($doc);
-    const cls = this.constructor;
-    for (const css_var of Object.keys(cls.style_var_default)) {
-      if (root_style_computed.getPropertyValue(css_var).length) continue;
-      const val = cls.style_var_default[css_var];
-      // log("Set dot style", css_var, val);
-      $doc.style.setProperty(css_var, val);
-    }
-
+  async on_style() {
     // log("fieldset init");
     this.$$("fieldset").removeAttribute("init");
   }

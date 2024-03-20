@@ -1,4 +1,4 @@
-import { JlSearch, load_caps } from "../jl-search.mjs";
+import { JlSearch, load_caps } from "../../jl-search.mjs";
 
 // eslint-disable-next-line no-unused-vars
 const log = console.log.bind(console);
@@ -27,8 +27,6 @@ const style = css`
       opacity: 1;
     }
   }
-
-  
 
   ul > li {
     display: grid;
@@ -77,7 +75,7 @@ const style = css`
   fieldset[init] .symbol:not(.state) {
     opacity: 0;
   }
-  
+
   fieldset .symbol {
     font-size: 1.5em;
     /* max set to line-height to not increase total */
@@ -90,19 +88,21 @@ const template = html`
   <style>
     ${style}
   </style>
-  <fieldset init>
-    <span class="symbol">dictionary</span>
-    <input placeholder="wikipedia articles" name="serach" />
-    <span class="state symbol"></span>
-  </fieldset>
-  <nav>
-    <section>
-      <hr />
-      <ul></ul>
-      <hr />
-      <footer></footer>
-    </section>
-  </nav>
+  <main>
+    <fieldset init>
+      <span class="symbol">dictionary</span>
+      <input placeholder="wikipedia articles" name="search" />
+      <span class="state symbol"></span>
+    </fieldset>
+    <nav>
+      <section>
+        <hr />
+        <ul></ul>
+        <hr />
+        <footer></footer>
+      </section>
+    </nav>
+  </main>
 `;
 
 class JlSearchWiki extends JlSearch {
@@ -111,7 +111,6 @@ class JlSearchWiki extends JlSearch {
   }
 
   async search({ query }) {
-    
     const query_out = encodeURIComponent(query);
     const res = await fetch(url_search + query_out);
     const json = await res.json();
@@ -215,33 +214,55 @@ class JlSearchWiki extends JlSearch {
     await document.fonts.load("1em Material Symbols Outlined");
     $root.querySelector("fieldset").removeAttribute("init");
 
+    // Could use polyfill
+    if (this.attachInternals) {
+      log("using internals");
+      this._internals = this.attachInternals();
+    }
+
     this.setup_dom();
   }
 
-  async setup_style() {
-    // The jl-search.css that prefixes the selectors with jl-search so they can
-    // be used in Light dom. We load the styles here and convert them for living
-    // in the shadow.
+  // Form internals api
+  static formAssociated = true;
+  get form() {
+    return this._internals.form;
+  }
+  get name() {
+    return this.getAttribute("name");
+  }
+  type = "text";
 
-    const style_url = new URL("../jl-search.css", import.meta.url);
+  async setup_style() {
+    // The jl-search.css that prefixes the selectors with jl-search so they
+    // can be used in Light dom. We load the styles here and convert them for
+    // living in the shadow.
+
+    this.setup_global_styles();
+
+    const style_url = new URL("../../jl-search.css", import.meta.url);
     const res = await fetch(style_url);
     const text = await res.text();
 
     // Assuming the host will not use selectors with chars here used for
     // regexp. Avoid space or > in host selector
     const shroud = new RegExp(/^\s*jl-search([^ {>]*)/);
-    const shrouded = text.split("\n").map(row => {
+    let shrouded = "";
+    for (const row of text.split("\n")) {
       const match = row.match(shroud);
-      if (!match) return row;
-      const [host_old, selector] = match;
-      const host_new = selector ? `:host(${selector})` : ":host";
-      return row.replace(host_old, host_new);
-    }).join("\n");
-    // log(shrouded);
+      if (!match) {
+        shrouded += row + "\n";
+      } else {
+        const [host_old, selector] = match;
+        const host_new = selector ? `:host(${selector})` : ":host";
+        shrouded += row.replace(host_old, host_new) + "\n";
+      }
+    }
 
     const css = new CSSStyleSheet();
     await css.replace(shrouded);
     this.shadowRoot.adoptedStyleSheets.push(css);
+
   }
 }
 

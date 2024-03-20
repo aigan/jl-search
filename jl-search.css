@@ -3,13 +3,13 @@ jl-search {
   font-family: var(--font-family, sans-serif);
   --_padding: var(--padding, 0.5em);
   --_line-height: var(--line-height, 1.2);
-  --_enabled-color: var(--outline-color, gray);
+  --_outline-base-color: var(--outline-color, gray);
   --_hover-color: var(--hover-color, black);
-  --_hover-brightness: 89%;
+  --_hover-brightness: 75%;
   --_active-color: var(--active-color, orange);
   --_focus-color: var(--focus-color, green);
   --_focus-bg: var(--focus-bg, lightgray);
-  --_highlight-bg: var(--highlight-bg, palegreen);
+  --_highlight-bg: var(--highlight-bg, bisque);
   --_disabled-color: var(--disabled-color, silver);
   --_input-bg: var(--input-bg, white);
   --_input-ink: var(--input-ink, black);
@@ -22,28 +22,68 @@ jl-search {
   --_hr-color: var(--hr-background, silver);
   --_shadow-color: var(--shadow-color, black);
   --_drop-shadow: 0 0.8rem 1rem 0 rgba(0 0 0 / 0.5);
-  --_outline-color: var(--_enabled-color);
   --_error-ink: var(--error-ink, red);
   --_error-container-bg: var(--error-container-bg, lightsalmon);
   --_error-container-ink: var(--error-container-ink, maroon);
 
+  --_outline-color: var(--_outline-base-color);
   --_outline-width: var(--_border-width);
   --_input-height: calc(var(--_line-height) * 1em + 2 * var(--_padding));
 
-  /* 
-  Compound variables doesn not update when dependant variable changes. Will
-  have to redefine when dependency changes:
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-  */
+  /* The height of the reserved space regardless of if the element is expanded
+  or moved, as on small mobile viewport */
+  height: var(--_input-height);
 }
 
-:root {
-  /* Variables that has to be in root. This is ignored if adopted in shadow */
-  --jl-search_move-speed: 0.25s;
+/*
+Layering several states on top of each other.
+ - :focus 
+ - [selected] 
+ - [opened] 
+ - :hover Darken current color
+ - :active 
+ - :disabled
+*/
+
+
+
+jl-search main {
+  /* The popover element that can be expanded or moved */
+  position: static;
+  display: inline-block;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+
+  /* Takes the visual role of the input element, with outline */
+  border-radius: var(--_border-radius);
+  --_outline: solid var(--_outline-width) var(--_outline-color);
+  outline: var(--_outline);
+
+  /* While animating shake */
+  overflow: hidden;
+
+  view-transition-name: jl-search-field;
+  transition: box-shadow 0.2s, outline-width 0.2s;
 }
 
-jl-search > fieldset {
-  /* Style reset*/
+jl-search[opened] main {
+  /* (almost) Same as :popover-open */
+  position: absolute;
+  top: anchor(top);
+  left: anchor(left);
+  width: anchor-size(width);
+
+
+  --_outline-width: var(--_border-width-focus);
+  /* --_outline: solid var(--_outline-width) var(--_outline-color); */
+  box-shadow: var(--_drop-shadow);
+}
+
+
+jl-search fieldset {
+  /* Reset browser fieldset style */
   margin: 0;
   padding: 0;
   border: 0;
@@ -51,36 +91,27 @@ jl-search > fieldset {
   display: flex;
   align-items: center;
 
-  border-radius: var(--_border-radius);
-
   --_bg: var(--_input-bg);
   background: var(--_bg);
   color: var(--_input-ink);
-
-  transition: box-shadow 0.2s;
-  view-transition-name: jl-search-field;
 
   /* Since the options popover are using shadow as an outline for handline the
   border different, using a masking color for the top, we must use box-shadow
   here also in order to have a consistent border between this and the
   popover.*/
-  --_outline-width: var(--_border-width);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-
-  box-shadow: var(--_outline);
 }
 
-jl-search[selected] > fieldset {
+jl-search[selected] fieldset {
   --_bg: var(--_selected-bg);
   color: var(--_selected-ink);
 }
 
-jl-search > fieldset > span {
+jl-search fieldset>span {
   flex: 0 0 auto;
 }
 
 jl-search input {
-  /* No side padding because of side elements having their own spacing*/
+  /* No side padding because of side elements having their own spacing */
   padding: var(--_padding) 0;
 
   margin: 0;
@@ -92,7 +123,8 @@ jl-search input {
   color: inherit;
   background-color: transparent;
 
-  width: 100%;
+  box-sizing: content-box;
+  width: 100%; /* (of content-box) */
 }
 
 jl-search input::selection {
@@ -101,25 +133,29 @@ jl-search input::selection {
 
 jl-search input:focus,
 jl-search input:focus-within {
+  /* Reset browser styles */
   outline: none;
   border: none;
 }
 
-jl-search:hover {
-  --_outline-color: var(--_hover-color);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
+jl-search main:focus-within {
+  --_outline-base-color: var(--_focus-color);
 }
 
-jl-search:hover:active {
-  --_outline-color: var(--_active-color);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
+jl-search main:hover {
+  /* --_outline-color: var(--_hover-color); */
+  --_outline-color: color-mix(in oklch, var(--_outline-base-color) var(--_hover-brightness), black);
+}
+
+jl-search main:active {
+  --_outline-base-color: var(--_active-color);
 }
 
 ::view-transition-group(jl-search-field) {
   animation-duration: 0s;
 }
 
-jl-search > fieldset:has(input:not(:disabled)) .state:hover {
+jl-search fieldset:has(input:not(:disabled)) .state:hover {
   /* Allows for hover on any bg  */
   background: color-mix(in oklch, var(--_bg) var(--_hover-brightness), black);
 
@@ -128,55 +164,29 @@ jl-search > fieldset:has(input:not(:disabled)) .state:hover {
   cursor: pointer;
 }
 
-jl-search:focus-within {
-  --_outline-color: var(--_focus-color);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-}
 
-jl-search > fieldset:has(input:disabled, input:active:disabled) {
+jl-search main:has(input:disabled, input:active:disabled) {
   opacity: var(--_disabled_content_opacity);
   --_outline-color: var(--_disabled-color);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-}
-
-jl-search[opened] > fieldset {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  --_outline-width: var(--_border-width-focus);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-
-  box-shadow: var(--_outline), var(--_drop-shadow);
 }
 
 jl-search nav {
-  border-radius: var(--_border-radius);
-  border-top-right-radius: 0;
-  border-top-left-radius: 0;
-
-  --_outline-width: var(--_border-width-focus);
-  --_outline: 0 0 0 var(--_outline-width) var(--_outline-color);
-
-  border: 0;
-  margin: 0;
-  padding: 0;
   background: var(--_input-bg);
 
-  /* anchor positioning polyfill will not work in shadow-dom */
-  box-sizing: border-box;
-  position: absolute;
-  top: anchor(bottom);
-  left: anchor(left);
-  width: anchor-size(width);
-  overflow: hidden;
+  transition: grid-template-rows var(--jl-search_move-speed) ease-out;
 
-  transition: grid-template-rows var(--jl-search_move-speed) ease-out,
-    box-shadow 0.2s;
+  /* transition: grid-template-rows var(--jl-search_move-speed) ease-out,
+    box-shadow 0.2s; */
 
-  transform-origin: top center;
+  /* transition: height 2s ease-out; */
+
 
   display: grid;
   grid-template-rows: 0fr;
+
+  /* height: var(--_input-height); */
 }
+
 
 jl-search[opened] nav {
   /* First line paints over the top shadow. Adding 1px for rounding errors.
@@ -185,16 +195,34 @@ jl-search[opened] nav {
   The paintover visually fails for width larger than field padding.
   */
 
-  box-shadow: 0 calc(-0.6px - var(--_border-width-focus)) 0 0 var(--_input-bg),
-    var(--_outline), var(--_drop-shadow);
+  /* box-shadow: 0 calc(-0.6px - var(--_border-width-focus)) 0 0 var(--_input-bg),
+    var(--_outline), var(--_drop-shadow); */
+
+  /* height: max-content; */
+  /* grid-template-rows: 1fr; */
+  --ignore: me;
 }
 
-jl-search nav > section {
+jl-search[opened]:not([data-anim="closing"]) main:popover-open nav {
+  grid-template-rows: 1fr;
+}
+jl-search[opened]:not([data-anim="closing"]) main.\:popover-open nav {
+  grid-template-rows: 1fr;
+}
+
+jl-search nav>section {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* height: 0; */
+}
+
+jl-search[opened] nav>section {
   height: fit-content;
 }
+
+/* Only show hr if there are options that should be separated from top or
+bottom */
 
 jl-search nav hr {
   border: thin solid var(--_hr-color);
@@ -236,18 +264,18 @@ jl-search ul {
   line-height: 1;
 }
 
-jl-search ul > li {
+jl-search ul>li {
   padding: calc(var(--_padding) / 2) var(--_padding);
   cursor: pointer;
   --_bg: var(--_input-bg);
   background: var(--_bg);
 }
 
-jl-search ul > li[aria-selected="true"] {
+jl-search ul>li[aria-selected="true"] {
   --_bg: var(--_highlight-bg);
 }
 
-jl-search ul > li:hover {
+jl-search ul>li:hover {
   /* Allows for hover on any bg */
   background: color-mix(in oklch, var(--_bg) var(--_hover-brightness), black);
 }
@@ -271,72 +299,33 @@ jl-search .spin {
   }
 }
 
-/* Zoom in in input on smaller screens */
+/* Zoom in input on smaller screens */
 /* 30rem = 480px = larger than normal phone screens */
 @media (max-width: 30rem) {
-  ::view-transition-group(jl-search-field) {
-    animation-duration: var(--jl-search_move-speed);
-  }
-
-  ::view-transition-old(jl-search-field),
-  ::view-transition-new(jl-search-field) {
-    height: 100%;
-  }
-
-  jl-search[data-anim="opening"] nav {
-    box-shadow: none;
-  }
-
-  jl-search nav {
-    --_height: calc(
-      100svh - 2 * var(--_border-width-focus) - var(--_input-height)
-    );
-
-    transition: height var(--jl-search_move-speed) ease-out;
-    height: 0;
-    grid-template-rows: none;
-  }
-
-  jl-search nav > section {
+  jl-search nav>section {
     height: auto;
   }
 
-  jl-search:not([data-anim="closing"]) nav:popover-open {
-    height: var(--_height);
-  }
-
-  jl-search:not([data-anim="closing"]) nav.\:popover-open {
-    height: var(--_height);
-  }
-
-  jl-search[opened] fieldset {
+  jl-search[opened] main {
     position: fixed;
     top: var(--_border-width-focus);
     left: var(--_border-width-focus);
-    width: calc(100% - 2 * var(--_border-width-focus));
-
-    /* Should make the input field itself a popover if moved from its original
-    position. Until then, let the user specify the index */
-    z-index: var(--z-index);
-  }
-
-  jl-search nav.empty hr:has(+ ul) {
-    display: block;
-  }
-
-  jl-search[opened] nav ul {
-    flex-grow: 1;
+    width: calc(100vw - 2 * var(--_border-width-focus));
   }
 }
 
-jl-search nav:not(.loaded-popover) {
-  visibility: hidden;
+/* ::global */
+:root {
+  /* Variables that has to be in root. (for view-transitions) They will have
+  to be copied if the css is used in shadow-root */
+  --jl-search_move-speed: .25s;
 }
 
-jl-search:not([data-anim="closing"]) nav.\:popover-open {
-  grid-template-rows: 1fr;
+::view-transition-group(jl-search-field) {
+  animation-duration: var(--jl-search_move-speed);
 }
 
-jl-search:not([data-anim="closing"]) nav:popover-open {
-  grid-template-rows: 1fr;
+::view-transition-old(jl-search-field),
+::view-transition-new(jl-search-field) {
+  height: 100%;
 }

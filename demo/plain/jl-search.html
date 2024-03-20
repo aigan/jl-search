@@ -1,5 +1,6 @@
 <!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JL-SEARCH demo</title>
 
 
 
@@ -18,7 +19,7 @@
     --font-family: sans-serif;
     --border-radius: .25rem;
     --border-width: .125rem;
-    --border-width-focus: .1875rem;
+    --border-width-focus: .25rem;
     --outline-color: var(--c-outline, gray);
     --input-bg: var(--c-surface-bright);
     --input-ink: var(--c-on-surface);
@@ -86,7 +87,7 @@
     line-height: 1;
   }
 
-  jl-search>fieldset .symbol {
+  jl-search fieldset .symbol {
     font-size: 1.5em;
     user-select: none;
     padding: calc(var(--_padding) - .25em);
@@ -114,8 +115,8 @@
 
 <!-- =====  Theme color slider  ===== -->
 
-<input id="hue" type="range" min="1" max="360">
-<input id="chroma" type="range" min="0" max="0.47" step="0.01">
+<input id="hue" type="range" min="1" max="360" aria-label="Theme hue">
+<input id="chroma" type="range" min="0" max="0.47" step="0.01" aria-label="Theme chroma">
 <script>
   const $hue = document.querySelector("#hue");
   const $chr = document.querySelector("#chroma");
@@ -157,20 +158,25 @@
 
 
 <!-- =====  Search component  ===== --->
-
-<link rel="stylesheet" href="../jl-search.css" />
+<link rel="stylesheet" href="../../jl-search.css" />
 <style>
   jl-search {
     --hr-color: var(--c-surface-dim, silver);
     --shadow-color: var(--c-shadow, black);
+
     max-width: 25em;
   }
 
 
-  /* Avoid FOUC while main style loads */
+  /* Avoid FOUC while main style loads. Not needed if the same height is used
+  in label */
   jl-search[init] {
     height: calc(var(--line-height) * 1em + 2 * var(--padding));
-    /* overflow: hidden; */
+  }
+
+  /* Hide until component style loaded*/
+  :where(jl-search>main) {
+    display: none;
   }
 
   @keyframes fade_in {
@@ -219,7 +225,7 @@
   }
 </style>
 <script type="module">
-  import { init } from "../jl-search.mjs";
+  import { init } from "../../jl-search.mjs";
   init();
 
   /*
@@ -324,6 +330,7 @@
     const $desc = document.createElement("p");
 
     $img.src = url_thumb_default;
+    $img.alt = "";
     $img.classList.add("default");
     $title.innerText = title;
 
@@ -353,17 +360,25 @@
 
     const search = "?" + encodeURIComponent(opt_id);
     // window.history.pushState({opt_id}, "", search);
-    // log("Go to", search);
+    log("Go to", search);
 
     // The navigation polyfill doesn't handle navigation through
     // window.location. Using the navigate api for better compatability.
-    navigation.navigate(search);
+    window.navigation.navigate(search);
     // window.location = search;
   });
 
+  let _presented = null;
   async function present(opt_id) {
     const $art = $$("article");
+    _presented = opt_id;
     // log("present", opt_id);
+
+    if( !opt_id?.length ) {
+      $art.hidden = true;
+      // log("hide");
+      return;
+    }
 
 
     // Skip fadeout if this is the first article shown
@@ -372,17 +387,22 @@
       : $art.animate([{ opacity: 1 }, { opacity: 0 }], 500);
 
     const rec = await get_rec(opt_id);
+    if( _presented !== opt_id ) return;
+    // log("Got", opt_id);
 
     // Start loading image while fadeout animates
     const $img = document.createElement("img");
     const img_loaded = new Promise((resolve, reject) => {
+      if( _presented !== opt_id ) return;
       if (!rec.thumbnail) return resolve();
       $img.src = rec.thumbnail.source;
+      $img.alt = "";
       $img.onload = resolve;
       $img.onerror = reject;
     });
 
     await fade_out.finished;
+    if( _presented !== opt_id ) return;
     $art.style.opacity = 0;
 
     // log("present", opt_id, rec);
@@ -396,17 +416,15 @@
     $$("article > a").href = rec.content_urls.desktop.page;
 
     await img_loaded; // start fade in after image loaded
+    if( _presented !== opt_id ) return;
     const fade_in = $art.animate([{ opacity: 0 }, { opacity: 1 }], 500);
     await fade_in.finished;
+    if( _presented !== opt_id ) return;
     $art.style.opacity = 1;
+    // log("present done");
   }
 
-
-  const [base] = window.location.href.split("?");
   $$("form").onsubmit = () => false;
-
-  const opt_id = new URL(document.location).search.slice(1);
-  if (opt_id.length) present(opt_id);
 
 
   if (!window.navigation) {
@@ -420,9 +438,10 @@
     install_router();
   }
 
+  const [base] = window.location.href.split("?");
   async function install_router() {
     // log("router installed", navigation.addEventListener);
-    navigation.addEventListener("navigate", ev => {
+    window.navigation.addEventListener("navigate", ev => {
       // Progressive enhancement. Will work enyway
       // log("navigate to", ev.destination.url);
 
@@ -433,14 +452,24 @@
       const [page, search] = ev.destination.url.split("?");
       if (page !== base) return;
 
-      const opt_id = decodeURIComponent(search);
+      const opt_id = decodeURIComponent(search??"");
       log("Navigate", ev.navigationType, opt_id);
 
       ev.intercept({
-        handler: () => present(opt_id),
+        handler: () => select(opt_id),
       })
     })
   }
+
+  function select( opt_id){
+    $inp1.set_selected(opt_id);
+    present(opt_id);
+  }
+
+  // First load selected option. After router is installed
+  const search = new URL(document.location).search.slice(1);
+  const opt_id = decodeURIComponent(search);
+  select( opt_id );
 
 </script>
 
@@ -489,7 +518,6 @@
     font-variation-settings: 'FILL' 1;
     cursor: pointer;
     filter: drop-shadow(0 0 2px rgba(255 255 0 / 50%));
-    z-index: 1;
   }
 
   nav.theme-switch::before {
@@ -535,7 +563,6 @@
     display: grid;
     grid-template-columns: auto 1fr;
     gap: var(--padding);
-    /* max-width: 80vw; */
   }
 
   form>div {
@@ -611,23 +638,26 @@
 
   <label for="field1">Search</label>
   <jl-search init>
-    <fieldset>
-      <span class="symbol">dictionary</span>
-      <input id="field1" placeholder="wikipedia articles" />
-      <span class="state symbol"></span>
-    </fieldset>
-    <nav>
-      <section>
-        <hr>
-        <ul></ul>
-        <hr>
-        <footer></footer>
-      </section>
-    </nav>
+    <main>
+      <fieldset>
+        <span class="symbol">dictionary</span>
+        <input id="field1" placeholder="wikipedia articles" />
+        <span class="state symbol"></span>
+      </fieldset>
+      <nav>
+        <section>
+          <hr>
+          <ul></ul>
+          <hr>
+          <footer></footer>
+        </section>
+      </nav>
+    </main>
   </jl-search>
 
-  <!-- <label for="name">Name</label>
-  <input id="name"> -->
+  <label for="name">Name</label>
+  <input id="name" style="z-index:33">
+
 </form>
 
 <article hidden>
