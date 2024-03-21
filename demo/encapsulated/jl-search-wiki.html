@@ -14,7 +14,7 @@
   // May be necessary to wait on element upgrade
   // await customElements.whenDefined("jl-search");
 
-  const $inp1 = $$("[for=field1] + jl-search");
+  const $inp1 = $$("jl-search");
   // log("attatching search", $jl_inp._id);
   const $delay = $$("#delay");
 
@@ -83,6 +83,7 @@
   :root {
     --font-family: sans-serif;
     --line-height: 1.5;
+    --border-radius: 1.5rem;
     --padding: .75em;
     --border-width: .125rem;
     --border-width-focus: .25rem;
@@ -105,7 +106,6 @@
   }
 
   label[for] {
-    padding: var(--padding) 0;
     white-space: nowrap;
   }
 
@@ -116,15 +116,55 @@
   form {
     margin-top: 2rem;
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--padding);
-    /* max-width: 80vw; */
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1.5em;
   }
 
   form>div {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    gap: var(--padding);
   }
+
+  :where(label[for]:has(+input[type="text"])) {
+    margin-top: var(--padding);
+  }
+
+  input[type="text"] {
+    font-size: 1em;
+    line-height: var(--line-height);
+    padding: var(--padding);
+    border-radius: var(--border-radius);
+    border: 0;
+    outline: var(--border-width) solid var(--outline-color);
+    background: var(--input-bg);
+    color: var(--input-ink);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  jl-search {
+    justify-self: center;
+    grid-column: span 2;
+  }
+
+  @media (max-width: 20rem) {
+    form {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    label {
+      margin-top: 1.5rem;
+      font-weight: bold;
+    }
+
+    jl-search {
+      margin-top: 1.5rem;
+      grid-column: span 1;
+    }
+  }
+
 
   article {
     view-transition-name: article;
@@ -194,13 +234,15 @@
     <span>Suggests text completion inside input field</span>
   </div>
 
-  <label for="field1">Search</label>
-  <jl-search id="field1" name="field1"></jl-search>
+  <jl-search></jl-search>
 
-  <!-- <label for="name">Name</label>
-  <input id="name"> -->
+  <label for="other">Other</label>
+  <input id="other" type="text">
 
 </form>
+
+
+
 
 <article hidden>
   <figure>

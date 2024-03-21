@@ -1,6 +1,4 @@
 jl-search {
-  display: inline-block;
-  font-family: var(--font-family, sans-serif);
   --_padding: var(--padding, 0.5em);
   --_line-height: var(--line-height, 1.2);
   --_outline-base-color: var(--outline-color, gray);
@@ -33,6 +31,13 @@ jl-search {
   /* The height of the reserved space regardless of if the element is expanded
   or moved, as on small mobile viewport */
   height: var(--_input-height);
+
+  display: inline-block;
+  box-sizing: border-box;
+  width: var(--width, 100%);
+
+  font-family: var(--font-family, sans-serif);
+
 }
 
 /*
