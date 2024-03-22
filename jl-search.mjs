@@ -430,6 +430,23 @@ class El extends HTMLElement {
     caps.loaded.then(() => $el.removeAttribute("init"));
   }
 
+  async setup_global_styles() {
+    const cls = this.constructor;
+    const global = new CSSStyleSheet();
+    await global.replace( cls.global_style_rules );
+    document.adoptedStyleSheets.push(global);
+    // log("global styles", cls.global_style_rules);
+
+    const $doc = document.documentElement;
+    const root_style_computed = getComputedStyle($doc);
+
+    for (const css_var of Object.keys(cls.global_style_vars)) {
+      if (root_style_computed.getPropertyValue(css_var).length) continue;
+      const val = cls.global_style_vars[css_var];
+      $doc.style.setProperty(css_var, val);
+    }
+  }
+
   async first_input() {
     const $el = this;
     const $inp = $el._$inp;
@@ -759,10 +776,10 @@ class El extends HTMLElement {
     const $inp = $el._$inp;
     const pos1 = $inp.selectionStart;
     const pos2 = $inp.selectionEnd;
+    //  log($el.input_debug($inp.value, 0, $inp.value.length, "escape"));
     if (pos1 === 0 && pos2 === $inp.value.length) return void $el.revert();
 
     $el.input_select();
-    // log($el.input_debug($inp.value, 0, $inp.value.length, "escape"));
   }
 
   async on_enter(ev) {
@@ -879,7 +896,7 @@ class El extends HTMLElement {
   set_selected(opt_id) {
     const $el = this;
     if (!opt_id?.length) opt_id = null;
-    log("set_selected", opt_id);
+    // log("set_selected", opt_id);
     $el._selected_option = opt_id; // before setAttribure, so we don't loop
     if (opt_id === null) {
       // console.warn("selected null");
@@ -1270,9 +1287,10 @@ class El extends HTMLElement {
    * value */
   revert() {
     const $el = this;
-    $el._$inp.value = "";
+    $el._$inp.value = $el._input = "";
     // log(`»« reverted`)
     $el.set_selected(null);
+    $el._retain_opened = false; 
     $el.handle_search_input("");
   }
 
@@ -1664,7 +1682,7 @@ class El extends HTMLElement {
     }
 
     // if ( $el._retain_opened && !res.from_memory ) $el.show_options()
-    if ($el.has_focus) $el.show_options();
+    if ($el._retain_opened && $el.has_focus) $el.show_options();
   }
 
   //
@@ -2046,22 +2064,6 @@ class El extends HTMLElement {
   }
   `;
 
-  async setup_global_styles() {
-    const cls = this.constructor;
-    const global = new CSSStyleSheet();
-    await global.replace( cls.global_style_rules );
-    document.adoptedStyleSheets.push(global);
-    // log("global styles", cls.global_style_rules);
-
-    const $doc = document.documentElement;
-    const root_style_computed = getComputedStyle($doc);
-
-    for (const css_var of Object.keys(cls.global_style_vars)) {
-      if (root_style_computed.getPropertyValue(css_var).length) continue;
-      const val = cls.global_style_vars[css_var];
-      $doc.style.setProperty(css_var, val);
-    }
-  }
 }
 
 // log("element defined");

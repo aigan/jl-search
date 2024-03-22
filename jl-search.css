@@ -189,6 +189,8 @@ jl-search nav {
   display: grid;
   grid-template-rows: 0fr;
 
+  contain: content;
+
   /* height: var(--_input-height); */
 }
 

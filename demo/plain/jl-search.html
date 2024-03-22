@@ -361,7 +361,7 @@
 
     const search = "?" + encodeURIComponent(opt_id);
     // window.history.pushState({opt_id}, "", search);
-    log("Go to", search);
+    // log("Go to", search);
 
     // The navigation polyfill doesn't handle navigation through
     // window.location. Using the navigate api for better compatability.
@@ -429,7 +429,6 @@
 
 
   if (!window.navigation) {
-
     // log("Capability navigation loading");
     import("https://para.se/2024/x/@virtualstate/navigation/esnext/polyfill.mjs").then(() => {
       log("Capability navigation ready");
@@ -463,7 +462,8 @@
   }
 
   function select(opt_id) {
-    $inp1.set_selected(opt_id);
+    if (!opt_id?.length) $inp1.revert();
+    else $inp1.set_selected(opt_id);
     present(opt_id);
   }
 
@@ -535,19 +535,17 @@
 
 
 
-<!-- ======  MAIN PAGE ====== -->
+<!-- =====  MAIN PAGE ===== -->
 
 <style>
   body {
-    margin: 1rem 3rem;
     font-family: var(--font-family);
     line-height: var(--line-height);
-  }
+    margin: 0;
 
-  @media (max-width: 30rem) {
-    body {
-      margin: 1rem;
-    }
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
   }
 
   label[for] {
@@ -558,8 +556,12 @@
     opacity: var(--disabled-opacity);
   }
 
+  :where(label:has(+jl-search, +input)){
+    padding-top: var(--padding);
+  }
+
   form {
-    margin-top: 2rem;
+    margin: 3rem;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 1.5em;
@@ -570,21 +572,13 @@
     align-items: flex-start;
     padding-left: var(--padding);
     gap: var(--padding);
-  }
 
-  @media (max-width: 20rem){
-    form{
-      grid-template-columns: auto;
-      gap: 0;
-    }
-    label{
-      margin-top: 1.5rem;
-    }
   }
 
 
   article {
     view-transition-name: article;
+    margin: 0 3rem 3rem;
   }
 
   figure {
@@ -628,6 +622,42 @@
     article img {
       width: 100%;
     }
+
+    @media (max-width: 30rem) {
+    form {
+      margin: 3rem 1rem;
+    }
+
+    article {
+      margin: 0 1rem 2rem;
+    }
+  }
+
+  @media (max-width: 20rem){
+    form{
+      grid-template-columns: auto;
+      gap: 0;
+    }
+    label{
+      padding-top: 0;
+      margin-top: 1.5rem;
+      font-weight: bold;
+    }
+  }
+
+
+  }
+
+  body>footer {
+    background: var(--c-inverse-surface);
+    color: var(--c-inverse-on-surface);
+    text-align: center;
+    margin-top: auto;
+    padding: 1rem;
+  }
+  body>footer :where( a:link, a:visited){
+    color: var(--c-inverse-primary);
+    text-decoration: none;
   }
 </style>
 <form>
@@ -669,8 +699,7 @@
   </jl-search>
 
   <label for="other">Other</label>
-  <input id="other" style="z-index:2">
-
+  <input id="other" placeholder="Example text input">
 </form>
 
 <article hidden>
@@ -682,3 +711,15 @@
   <summary></summary>
   <a>read more</a>
 </article>
+
+
+
+
+
+<!-- =====  footer  ===== -->
+
+<footer><a href="https://github.com/aigan/jl-search"><code>&lt;JL-SEARCH&gt;</code></a> version <var></var></footer>
+<script type="module">
+  const {version} = await (await fetch("../../package.json")).json();
+  document.querySelector("body>footer>var").innerText = version;
+</script>
