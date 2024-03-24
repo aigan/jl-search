@@ -14,7 +14,8 @@ export function init() {
 /**
  * @attribute {opt_id} selected The `opt_id` of the selected option.
  * @attribute {boolean} opened
- * @attribute {boolean} autocomplete Suggests text completion inside input field
+ * @attribute {boolean} autocomplete Suggests text completion inside input
+ * field
 
  * @attribute {boolean} more-anim Even more unecessary animations
  * @fires JlSearch#change The `selected` opt_id has changed.
@@ -50,14 +51,14 @@ class El extends HTMLElement {
   /**
    * Defines the structure of the search result object.
    * @typedef {Object} SearchResult
-   * @property {{name: string, message: string}|null} [error] An object containing
-   * error details, if any.
+   * @property {{name: string, message: string}|null} [error] An object
+   * containing error details, if any.
    * @property {opt_id[]} found An array of `opt_id` strings representing the
    * found items.
    * @property {number} count The total number of found items.
-   * @property {boolean} [from_visited] Indicates if the found list is80 derived
-   * from previously executed searches, as opposed to results from transient,
-   * real-time searches during query modification.
+   * @property {boolean} [from_visited] Indicates if the found list is80
+   * derived from previously executed searches, as opposed to results from
+   * transient, real-time searches during query modification.
    * @property {boolean} [from_memory] Memoized results used
    * @property {string|null} query The search query string.
    * @property {number} speed The speed of the search operation.
@@ -246,7 +247,9 @@ class El extends HTMLElement {
         microseconds per frame and seems like less job than a mutation
         observer since it would likely trigger on all the changes in the dom
         duting list population. The getComputedStyle($main).position part is
-        unfortunate and adds an additional 60 microseconds per frame. 
+        unfortunate and adds an additional 60 microseconds per frame. Should
+        probably replace it with a resizeobserver of the main document. But
+        this is still just a fallback for when anchor_positioning is missing.
       */
 
       const raf = () => {
@@ -560,14 +563,18 @@ class El extends HTMLElement {
     // done async), we will handle events here if possible. See
     // autocomplete().
 
-    this._do_autocomplete = true;
+    if (!$el._input_ready) return;
+
+    $el._retain_opened = true;
+    $el._do_autocomplete = true;
     const $inp = $el._$inp;
     const txt = $inp.value;
     const pos1a = $el._pos1;
     const pos2a = $el._pos2;
     const pos1b = $inp.selectionStart;
     const pos2b = $inp.selectionEnd;
-    // log(ev.inputType, `»${txt}«(${txt.length}) [${pos1a},${pos2a}]→[${pos1b},${pos2b}]`, ev);
+    // log(ev.inputType, `»${txt}«(${txt.length}) [${pos1a},${pos2a}]→` + 
+    // `[${pos1b},${pos2b}]`, ev);
 
     switch (ev.inputType) {
       case "insertText":
@@ -629,9 +636,6 @@ class El extends HTMLElement {
     // log("prevent default", ev);
     $el.set_selected(null);
     ev.preventDefault();
-
-    if (!$el._input_ready) return;
-    $el._retain_opened = true;
   }
 
   on_input(ev) {
@@ -642,7 +646,8 @@ class El extends HTMLElement {
     // Probably because it's async. Revert unexpected async changes here.
 
     if ($inp.value !== $el._input) {
-      // console.warn("on_input", $el._pos_persist?"PERSIST":"", $inp.value, "=>", $el._input);
+      // console.warn("on_input", $el._pos_persist?"PERSIST":"", $inp.value, 
+      // "=>", $el._input);
       $inp.value = $el._input;
     }
     ev.preventDefault();
@@ -686,6 +691,7 @@ class El extends HTMLElement {
         return;
       default:
         this._do_autocomplete = true;
+        this._retain_opened = true;
         this._pos_persist = false;
         return; // Pass to next handler
     }
@@ -886,11 +892,6 @@ class El extends HTMLElement {
    */
   set value(opt_id) {
     this.set_selected(opt_id);
-    // const $el = this;
-    // const txt = $el.format(opt_id);
-    // $el._$inp.value = $el._input = txt;
-    // $el._pos1 = $el._pos2 = txt.length;
-    // $el.handle_search_input(txt);
   }
 
   set_selected(opt_id) {
@@ -923,9 +924,11 @@ class El extends HTMLElement {
    * A querySelector() shortcut.
    *
    * @param {string} selector The CSS selector to match the elements against.
-   * @returns {Element|null} The first element that matches the specified selector, or null if there are no matches.
+   * @returns {Element|null} The first element that matches the specified
+   * selector, or null if there are no matches.
    *
-   * @remarks If the element makes use of a shadow root, this method should be overridden to query within the shadow DOM.
+   * @remarks If the element makes use of a shadow root, this method should be
+   * overridden to query within the shadow DOM.
    */
   $$(selector) {
     return this.querySelector(selector);
@@ -989,8 +992,8 @@ class El extends HTMLElement {
 
   get_state() {
     const $el = this;
-    if ($el._searching) return "loading";
     if ($el._error) return "error";
+    if ($el._searching) return "loading";
     if ($el._$inp.disabled) return "closed";
     if (!$el._input_ready) return "loading";
     if ($el.hasAttribute("opened")) return "opened";
@@ -1199,6 +1202,7 @@ class El extends HTMLElement {
 
     // log("show_options set opened");
     await $el.toggle_options(true);
+    await caps.scroll_into_view;
     if ($el.dataset.anim !== "opening") return;
     delete $el.dataset.anim;
     $el._$inp.scrollIntoViewIfNeeded();
@@ -1644,11 +1648,13 @@ class El extends HTMLElement {
     $el.auto_highlight(res.found[0]);
 
     await $el.prepare_options(res).catch((err) => {
-      res.error = err;
+      $el._error = res.error = err;
+      $el.show_error();
     });
 
     // Now only continue if we haven't rendered anything later
-    // log("timing", res.req, "compared to rendered", $el._data.rendered.req, "and current", $el._req_id);
+    // log("timing", res.req, "compared to rendered", $el._data.rendered.req,
+    // "and current", $el._req_id);
     if (res.req < $el._data.rendered.req) return;
 
     // Since we allow async prepare. There may have come new search results
@@ -1718,13 +1724,14 @@ class El extends HTMLElement {
 
   maybe_autocomplete(res) {
     const $el = this;
+    // log("maybe_autocomplete", $el._do_autocomplete, $el._query, res.query);
 
     if (!$el._do_autocomplete) return;
     if (!$el.hasAttribute("autocomplete")) return;
-    $el._do_autocomplete = false;
 
     if ($el._query !== res.query) return;
 
+    $el._do_autocomplete = false;
     const opt_id = res.found[0];
     if (opt_id == null) return;
 
@@ -1732,6 +1739,7 @@ class El extends HTMLElement {
     const pos1 = $inp.selectionStart;
     const pos2 = $inp.selectionEnd;
     let text_base = $inp.value;
+    // log("maybe_autocomplete", pos1, pos2, text_base.length, text_base);
 
     // Only autocomplete if positioned at the end
     if (pos1 < pos2 || pos2 < text_base.length) return;
@@ -1758,7 +1766,7 @@ class El extends HTMLElement {
     visited.unshift(opt_id);
     if (visited.length > $el._page_size) visited.length = $el._page_size;
 
-    localStorage.setItem("jl-input_visited", JSON.stringify(visited));
+    localStorage.setItem("jl-search_visited", JSON.stringify(visited));
   }
 
   set_options_from_visited(req_id) {
@@ -1784,7 +1792,7 @@ class El extends HTMLElement {
 
   setup_visited() {
     const $el = this;
-    const visited_raw = localStorage.getItem("jl-input_visited");
+    const visited_raw = localStorage.getItem("jl-search_visited");
     // log("setup visited", visited_raw );
     if (!visited_raw) return;
     $el._visited = JSON.parse(visited_raw);
@@ -1832,7 +1840,7 @@ class El extends HTMLElement {
     exit_after
     
     */
-
+    
     const $el = this;
     const { found = [], count = 0 } = res;
 
@@ -1925,7 +1933,7 @@ class El extends HTMLElement {
     const $li = document.createElement("li");
     $li.dataset.id = opt_id;
     $li.ariaSelected = highlighted;
-    // $li.style.viewTransitionName = `jl-input-${$el._id}-li-${++$el._li_id}`;
+    // $li.style.viewTransitionName = `jl-search-${$el._id}-li-${++$el._li_id}`;
     $el.render_item_content($li, opt_id);
     return $li;
   }
@@ -2140,11 +2148,6 @@ async function load_polyfill_anchor_positioning() {
   // Since the css-anchor-positioning polyfill doesn't handle shadow-dom, I
   // can do my own progressive enhancement in code.
   return (caps.missing.anchor_positioning = true);
-
-  // caps.polyfilled.anchor_positioning = true;
-  // const { default: polyfill } = await import("https://unpkg.com/@oddbird/css-anchor-positioning/dist/css-anchor-positioning-fn.js");
-  // await polyfill();
-  // await sleep(0); // Go to the back of the queue
 }
 
 async function load_polyfill_scroll_into_view() {

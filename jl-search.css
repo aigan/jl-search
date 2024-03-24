@@ -24,8 +24,6 @@ jl-search {
   --_error-container-bg: var(--error-container-bg, lightsalmon);
   --_error-container-ink: var(--error-container-ink, maroon);
 
-  --_outline-color: var(--_outline-base-color);
-  --_outline-width: var(--_border-width);
   --_input-height: calc(var(--_line-height) * 1em + 2 * var(--_padding));
 
   /* The height of the reserved space regardless of if the element is expanded
@@ -63,8 +61,11 @@ jl-search main {
 
   /* Takes the visual role of the input element, with outline */
   border-radius: var(--_border-radius);
-  --_outline: solid var(--_outline-width) var(--_outline-color);
-  outline: var(--_outline);
+
+  --_outline-color: var(--_outline-base-color);
+  --_outline-width: var(--_border-width);
+  outline: solid var(--_outline-width) var(--_outline-color);
+
 
   /* While animating shake */
   overflow: hidden;
@@ -80,9 +81,6 @@ jl-search[opened] main {
   left: anchor(left);
   width: anchor-size(width);
 
-
-  --_outline-width: var(--_border-width-focus);
-  /* --_outline: solid var(--_outline-width) var(--_outline-color); */
   box-shadow: var(--_drop-shadow);
 }
 
@@ -145,10 +143,11 @@ jl-search input:focus-within {
 
 jl-search main:focus-within {
   --_outline-base-color: var(--_focus-color);
+  --_outline-width: var(--_border-width-focus);
+
 }
 
 jl-search main:hover {
-  /* --_outline-color: var(--_hover-color); */
   --_outline-color: color-mix(in oklch, var(--_outline-base-color) var(--_hover-brightness), black);
 }
 

@@ -5,25 +5,33 @@
 <main></main>
 
 <script type="module">
-	const $main = document.querySelector("main");
-	for (const row of [...Array(9).keys()]) {
-		const $row = document.createElement("div");
-		$row.style.setProperty("--row", row);
-		$row.classList.add("row");
-		$main.append($row);
-
-		for( const col of [...Array(10).keys()]){
-			const $col = document.createElement("div");
-			$col.style.setProperty("--col", col);
-			$col.classList.add("col");
-			$row.append($col);
-		}
+const $main = document.querySelector("main");
+for (const row of [...Array(9).keys()]) {
+	const $row = document.createElement("div");
+	$row.style.setProperty("--row", row);
+	$row.classList.add("row");
+	$main.append($row);
+	
+	for( const col of [...Array(10).keys()]){
+		const $col = document.createElement("div");
+		$col.style.setProperty("--col", col);
+		$col.classList.add("col");
+		$row.append($col);
 	}
+}
 
-	const $hue = document.querySelector("#hue");
-	const style = document.documentElement.style;
-	$hue.oninput = ()=>style.setProperty("--ok-h", $hue.value);
-	$hue.oninput();
+let timeout;
+const $hue = document.querySelector("#hue");
+const style = document.documentElement.style;
+$hue.value = decodeURIComponent(window.location.hash).slice(1);
+//console.log("hue", $hue.value, window.location.hash);
+$hue.oninput = ()=>{
+	style.setProperty("--ok-h", $hue.value);
+	clearTimeout(timeout);
+	timeout = setTimeout( ()=> history.replaceState(null, null, `#${hue.value}`), 400 );
+}
+
+$hue.oninput();
 
 </script>
 
