@@ -456,15 +456,16 @@
       log("Navigate", ev.navigationType, opt_id);
 
       ev.intercept({
-        handler: () => select(opt_id),
+        handler: () => select(opt_id, true),
       })
     })
   }
 
-  function select(opt_id) {
+  async function select(opt_id, scroll=false) {
     if (!opt_id?.length) $inp1.revert();
     else $inp1.set_selected(opt_id);
-    present(opt_id);
+    await present(opt_id);
+    if( scroll ) $$("article img").scrollIntoViewIfNeeded();
   }
 
   // First load selected option. After router is installed

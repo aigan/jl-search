@@ -76,9 +76,7 @@ class El extends HTMLElement {
   _memory = new Map(); // Memoized search results
   _mouse_inside = false; // For focusout
   _do_autocomplete = false;
-  _pos1 = 0; // input text selection start
-  _pos2 = 0; // input text selection end
-  _pos_persist = false; // Protect selection from out-of-sync changes
+  _query = null;
 
   /** Currently latest search request sequence id
    * @type {RequestId}
@@ -90,11 +88,36 @@ class El extends HTMLElement {
    */
   _searching = false;
 
+  /*
+For handling virtual keyboards with async multi-step changes.
+
++ inp : input value
++ pos : input selection [start,end]
+
++ old : last known value
++ bin : "beforeinput" changed externally
++ unc : uncompleted version
++ cur : current value from browser
+*/
+
   /**  Latest running query
    * @type {string|null}
    */
-  _input = "";
-  _query = null;
+  _inp_old = "";
+  _pos_old = [0, 0]; // input text selection start
+  // _inp_bin = "";
+  // _pos_bin = [0, 0];
+  _inp_unc = "";
+  _pos_unc = [0, 0];
+
+  _pos_persist = false; // Protect selection from out-of-sync changes
+  _inp_time = Date.now(); // Last update from user
+  _inp_debounce = 75;
+  _persist_timer = null;
+  _persist_debounce = 150;
+  // _backspace_timer = null;
+  // _backspace_amount = 0;
+  // _backspace_debounce = 250;
 
   /** Number of items in options list
    * @type {number}
@@ -423,11 +446,13 @@ class El extends HTMLElement {
     $el._ev.el = {
       focusout: (ev) => $el.on_focusout(ev),
       mousedown: (ev) => $el.on_mousedown(ev),
+      touchstart: (ev) => $el.on_mousedown(ev),
+
       // click: ev => $el.on_click(ev),
     };
 
     for (const [type, listener] of Object.entries($el._ev.el)) {
-      $el.addEventListener(type, listener);
+      $el.addEventListener(type, listener, { passive: true });
     }
 
     caps.loaded.then(() => $el.removeAttribute("init"));
@@ -436,7 +461,7 @@ class El extends HTMLElement {
   async setup_global_styles() {
     const cls = this.constructor;
     const global = new CSSStyleSheet();
-    await global.replace( cls.global_style_rules );
+    await global.replace(cls.global_style_rules);
     document.adoptedStyleSheets.push(global);
     // log("global styles", cls.global_style_rules);
 
@@ -464,7 +489,7 @@ class El extends HTMLElement {
     $el._input_ready = true;
     $el.update_state();
     // log("input_ready");
-    $el._input = $inp.value;
+    $el._inp_old = $inp.value;
     $el.handle_search_input($inp.value);
   }
 
@@ -532,14 +557,14 @@ class El extends HTMLElement {
   on_field_click(ev) {
     const $el = this;
     // log("CLICK field (userselect)");
-
-    $el._pos_persist = false; // Allow text de-selection
     $el._$inp.focus();
   }
 
   on_mousedown(ev) {
     this._mouse_inside = true;
-    // log("mousedown");
+    // log("on_mousedown", ev.type);
+    this._pos_persist = false; // Allow text selection
+
     setTimeout(() => {
       this._mouse_inside = false;
     });
@@ -565,66 +590,120 @@ class El extends HTMLElement {
 
     if (!$el._input_ready) return;
 
+    $el.set_selected(null);
     $el._retain_opened = true;
     $el._do_autocomplete = true;
+    $el._pos_backspace = false;
+    $el._inp_time = Date.now();
+
     const $inp = $el._$inp;
-    const txt = $inp.value;
-    const pos1a = $el._pos1;
-    const pos2a = $el._pos2;
-    const pos1b = $inp.selectionStart;
-    const pos2b = $inp.selectionEnd;
-    // log(ev.inputType, `»${txt}«(${txt.length}) [${pos1a},${pos2a}]→` + 
+    const txt_cur = $inp.value;
+    const [pos1a, pos2a] = $el._pos_old;
+    // const [pos1b, pos2b] = $el._pos_bin;
+    const [pos1u, pos2u] = $el._pos_unc;
+    const pos1c = $inp.selectionStart;
+    const pos2c = $inp.selectionEnd;
+
+    // log(
+    //   `${ev.inputType} ${ev.data ? `»${ev.data}«` : ""}`,
+    //   ev.cancelable ? "cancelable" : "UNCANCELABLE"
+    // );
+    // log(ev.inputType, $el.input_debug($el._inp_old, pos1a, pos2a, "OLD"));
+    // // log(ev.inputType, $el.input_debug($el._inp_bin, pos1b, pos2b, "BIN"));
+    // log(ev.inputType, $el.input_debug($el._inp_unc, pos1u, pos2u, "UNC"));
+    // log(ev.inputType, $el.input_debug(txt_cur, pos1c, pos2c, "CUR"));
+
+    // log(ev.inputType, `»${txt}«(${txt.length}) [${pos1a},${pos2a}]→` +
     // `[${pos1b},${pos2b}]`, ev);
 
     switch (ev.inputType) {
       case "insertText":
       case "insertFromPaste":
+      case "insertCompositionText":
       case "insertReplacementText": {
         const pos1 = pos1a + ev.data.length;
-        const txt_new = txt.slice(0, pos1a) + ev.data + txt.slice(pos2a);
-        $el.set_input(txt_new, pos1, pos1, ev.inputType);
-        $el.handle_search_input(txt_new);
+        const txt_new =
+          txt_cur.slice(0, pos1a) + ev.data + txt_cur.slice(pos2a);
+        if (!ev.cancelable) {
+          // Mozilla event uncancelable.
+          // Defer consistency check to on_input.
+          $el._inp_old = txt_new;
+          $el._pos_old = [pos1, pos1];
+          $el.handle_search_input(txt_new);
+          return; // let browser update input
+        }
+
+        $el.set_input(txt_new, pos1, pos1, false, ev.inputType);
         break;
       }
       case "deleteContentBackward": {
-        // The browser selects the chars to be deleted. But also often hasn't
-        // noticed autocomplete selection. It will even get confused about the
-        // length and position of deletion separately. A virtual keyboard
-        // autocorrect will be given as a deleteContentBackward followed by a
-        // InsetText.
+        /*
+        The browser selects the chars to be deleted. But also often hasn't
+        noticed autocomplete selection. It will even get confused about the
+        length and position of deletion separately. The word replacement is
+        sometimes as slow as 750 ms.
 
-        let pos1;
-        if (pos2a === pos2b && pos1b < pos1a) pos1 = pos1b;
-        else pos1 = Math.max(pos1a - 1, 0);
-        let pos2 = pos1;
-        let txt_new = txt.slice(0, pos1) + txt.slice(pos2a);
-        $el.handle_search_input(txt_new);
+        ## Android Chrome 
 
-        // Instead of just waiting for the search result, do the autocomplete
-        // with what we have, as to eliminate flickering completion text on
-        // backspace.
-        const opt_text = $el.format($el._data.received.found[0] ?? "");
-        if (
-          pos2a === txt.length &&
-          pos1a > 0 &&
-          $el.hasAttribute("autocomplete") &&
-          opt_text.startsWith(txt_new)
-        ) {
-          txt_new = opt_text;
-          pos2 = opt_text.length;
-          $el._do_autocomplete = false;
+        + An autocorrect will be given as a deleteContentBackward with the
+          chars to be replaced selected followed by an input event followed by
+          an InsertText.
+
+        + Deleting a selected text will first place the cursor at the end
+          (deselecting the text) followed by a deleteContentBackward
+
+        + Backspace with no selection will deleteContentBackward with one char
+          selected, followed by an input event.
+
+        + Backspace with autocpmplete selection will place cursor at what it
+          think is the end, triggering a persist, followed by a
+          deleteContentBackward based on what it thought the selection was,
+          followed by an input event.
+
+        + inserting new word will deleteContentBackward with the current
+          autocomplete selection, followed by an input event with the
+          selection now deleted, followed by an insertText with the word.
+          (setting input and preventing default seems to prevent the input
+          field to actually show the new content)
+
+        + Autocomplete during a word insertion will make the keyboard to try a
+          couple of more times. Meaning that we can't be to fast with
+          autocompletion. For failed atempts, it tries again after about
+          100ms. Sometimes it's more like 1000ms.
+
+        */
+
+        const has_autosolect =
+          pos2c === txt_cur.length && pos1c < pos2c && pos1c === pos1u;
+
+        let pos1 = pos1c;
+        let pos2 = pos2c;
+
+        /* 
+        Since word replacement can have long (750ms) delays between deletion
+        and insertion, the logical backspace doesn't work.
+        */
+        // if (has_autosolect) $el.schedule_backspace();
+
+        $el._do_autocomplete = false;
+
+        // Did the input miss the recently selected text?
+        if (pos1a < pos2a && pos2c < pos2a) {
+          log("Extend selection to missed autoslection");
+          pos2 = pos2a;
         }
 
-        $el.set_input(txt_new, pos1, pos2, ev.inputType);
+        let txt_new = txt_cur.slice(0, pos1) + txt_cur.slice(pos2);
+        if (!txt_new.length) $el._do_autocomplete = false;
+        $el.set_input(txt_new, pos1, pos1, false, ev.inputType);
         break;
       }
       case "deleteByCut":
       case "deleteContent":
       case "deleteContentForward": {
-        let pos2 = pos2a < pos2b ? pos2b : pos2a + 1;
-        const txt_new = txt.slice(0, pos1a) + txt.slice(pos2);
-        $el.set_input(txt_new, pos2, pos2, ev.inputType);
-        $el.handle_search_input(txt_new);
+        let pos2 = pos2a < pos2c ? pos2c : pos2a + 1;
+        const txt_new = txt_cur.slice(0, pos1a) + txt_cur.slice(pos2);
+        $el.set_input(txt_new, pos2, pos2, false, ev.inputType);
         break;
       }
       default: {
@@ -634,7 +713,7 @@ class El extends HTMLElement {
     }
 
     // log("prevent default", ev);
-    $el.set_selected(null);
+    $el.handle_search_input($inp.value);
     ev.preventDefault();
   }
 
@@ -645,11 +724,26 @@ class El extends HTMLElement {
     // Chrome proceeds with input event even if we handled it in beforeinput.
     // Probably because it's async. Revert unexpected async changes here.
 
-    if ($inp.value !== $el._input) {
-      // console.warn("on_input", $el._pos_persist?"PERSIST":"", $inp.value, 
-      // "=>", $el._input);
-      $inp.value = $el._input;
+    // const [pos1a, pos2a] = $el._pos_old;
+    // const [pos1b, pos2b] = $el._pos_bin;
+    // const [pos1u, pos2u] = $el._pos_unc;
+    // const pos1c = $inp.selectionStart;
+    // const pos2c = $inp.selectionEnd;
+
+    // log("INPUT", $el._pos_persist ? " PERSIST" : "", `»${$inp.value}«`);
+    // log("INPUT", $el.input_debug($el._inp_old, pos1a, pos2a, "OLD"));
+    // // log("INPUT", $el.input_debug($el._inp_bin, pos1b, pos2b, "BIN"));
+    // log("INPUT", $el.input_debug($el._inp_unc, pos1u, pos2u, "UNC"));
+    // log("INPUT", $el.input_debug($inp.value, pos1c, pos2c, "CUR"));
+
+    if ($inp.value !== $el._inp_old) {
+      log("set _inp_bin and schedule persist");
+      // $el._inp_bin = $inp.value;
+      // $el._pos_bin = [pos1c, pos2c];
+      $el._inp_time = Date.now();
+      $el.schedule_persist();
     }
+
     ev.preventDefault();
     return;
   }
@@ -706,43 +800,145 @@ class El extends HTMLElement {
     if (!$el.has_focus) return;
     const $inp = $el._$inp;
 
-    const pos1 = $inp.selectionStart;
-    const pos2 = $inp.selectionEnd;
+    const [pos1a, pos2a] = $el._pos_old;
+    // const [pos1b, pos2b] = $el._pos_bin;
+    // const [pos1u, pos2u] = $el._pos_unc;
+    const pos1c = $inp.selectionStart;
+    const pos2c = $inp.selectionEnd;
 
     // Ignore if seelction is unchanged compared to what we know
-    if ($el._pos1 === pos1 && $el._pos2 === pos2) return;
+    if (pos1a === pos1c && pos2a === pos2c) return;
+    // if (pos1b === pos1c && pos2b === pos2c) return; // repeated event
 
-    // Ignore cursor movement
-    if ($el._pos1 === $el._pos2 && pos1 === pos2) return;
-
-    const txt = $inp.value;
-    // log("on_select" + ($el._pos_persist ? " PERSIST" : ""),
-    //   `»${txt}«(${txt.length}) [${$el._pos1},${$el._pos2}]→[${pos1},${pos2}]`);
+    // log("SELECT", $el._pos_persist ? " PERSIST" : "", [pos1c, pos2c], ev.value);
+    // log("SELECT", $el.input_debug($el._inp_old, pos1a, pos2a, "OLD"));
+    // log("SELECT", $el.input_debug($el._inp_bin, pos1b, pos2b, "BIN"));
+    // log("SELECT", $el.input_debug($el._inp_unc, pos1u, pos2u, "UNC"));
+    // log("SELECT", $el.input_debug($inp.value, pos1c, pos2c, "CUR"));
 
     // Workaround for browsers some times losing the selected text.
     if ($el._pos_persist) {
-      $inp.setSelectionRange($el._pos1, $el._pos2);
-      // log($el.input_debug(txt, $el._pos1, $el._pos2, "RE-SELECTED"));
+      // log("set _pos_bin and schedule persist");
+      // $el._inp_bin = $inp.value;
+      // $el._pos_bin = [pos1c, pos2c];
+      $el._inp_time = Date.now();
+      $el.schedule_persist();
       return;
     }
+
+    // Act on changed selection
+
+    // Ignore cursor movement
+    if (pos1a === pos2a && pos1c === pos2c) return;
 
     // Selection changed. Do search on the left part and treat the right part
     // as transient autocomplete.
     // $el._do_autocomplete = false;
-    $el._pos1 = pos1;
-    $el._pos2 = pos2;
+    $el._pos_old = [pos1c, pos2c];
 
-    if (pos2 === txt.length && pos1 > 0) {
-      const txt_prefix = txt.slice(0, pos1);
-      // log($el.input_debug(txt, pos1, pos2, "on_select -> search START"));
+    const txt = $inp.value;
+    if (pos2c === txt.length && pos1c > 0) {
+      const txt_prefix = txt.slice(0, pos1c);
+      // log($el.input_debug(txt, pos1c, pos2c, "on_select -> search START"));
 
-      if (pos1 < pos2) $el.set_selected(null);
+      if (pos1c < pos2c) $el.set_selected(null);
 
       return $el.handle_search_input(txt_prefix);
     } else {
-      // log($el.input_debug(txt, pos1, pos2, "on_select -> search WHOLE"));
+      // log($el.input_debug(txt, pos1c, pos2c, "on_select -> search WHOLE"));
       return $el.handle_search_input(txt);
     }
+  }
+
+  schedule_persist() {
+    if (this._persist_timer) clearTimeout(this._persist_timer);
+    // Chrome seems to space out sequential changes at 100ms. This is only
+    // used for selections and text changes not coming from us. The timing is
+    // possibly adapted for when the keyboard detects changes being made
+    // during operation. Otherwise, the timing is about 10ms.
+
+    this._persist_timer = setTimeout(
+      () => this.persist(),
+      this._persist_debounce
+    );
+    // this.cancel_backspace();
+  }
+
+  // cancel_backspace() {
+  //   if (this._backspace_timer) log("Cancel backspace");
+  //   clearTimeout(this._backspace_timer);
+  //   this._backspace_timer = null;
+  //   this._backspace_amount = 0;
+  // }
+
+  // schedule_backspace() {
+  //   const $el = this;
+  //   // Doesn't work.
+
+  //   $el._backspace_amount++;
+  //   log("Schedule backspace", $el._backspace_amount);
+  //   if ($el._backspace_timer) clearTimeout($el._backspace_timer);
+
+  //   $el._backspace_timer = setTimeout(
+  //     () => $el.resolve_backspace(),
+  //     $el._backspace_debounce
+  //   );
+  // }
+
+  // resolve_backspace() {
+  //   const $el = this;
+  //   const amount = $el._backspace_amount;
+  //   log("Resolve backspace", amount);
+  //   $el.cancel_backspace();
+  //   $el._persist_timer = null;
+  //   return;
+
+  //   const $inp = $el._$inp;
+  //   const [pos1a, pos2a] = $el._pos_old;
+  //   const pos1c = $inp.selectionStart;
+  //   const pos2c = $inp.selectionEnd;
+  //   const txt_cur = $inp.value;
+
+  //   const pos1 = Math.max(pos1c - amount, 0);
+
+  //   // Would be nice to just extend the autocomplete selection, but we can't
+  //   // do that since the keyboard does the selection deletion and then may
+  //   // replace it with something else.
+
+  //   // if (pos2c === txt_cur.length) {
+  //   //   // At end, with or without selection
+  //   //   $el.input_select(pos1, pos2c, false);
+  //   //   const txt_base = txt_cur.slice(0, pos1);
+  //   //   $el.handle_search_input(txt_base);
+  //   // } else {
+  //   const txt_new = txt_cur.slice(0, pos1) + txt_cur.slice(pos2c);
+  //   $el.set_input(txt_new, pos1, pos1, false, "resolve_backspace");
+  //   $el.handle_search_input(txt_new);
+  //   // }
+  // }
+
+  persist() {
+    const $el = this;
+
+    if ($el._inp_time + $el._persist_debounce > Date.now())
+      return $el.schedule_persist();
+
+    const $inp = $el._$inp;
+    const [pos1a, pos2a] = $el._pos_old;
+    // const [pos1b, pos2b] = $el._pos_bin;
+    const [pos1u, pos2u] = $el._pos_unc;
+    const pos1c = $inp.selectionStart;
+    const pos2c = $inp.selectionEnd;
+
+    log("PERSIST");
+    log("PERSIST", $el.input_debug($el._inp_old, pos1a, pos2a, "OLD"));
+    // log("PRESIST", $el.input_debug($el._inp_bin, pos1b, pos2b, "BIN"));
+    log("PRESIST", $el.input_debug($el._inp_unc, pos1u, pos2u, "UNC"));
+    log("PERSIST", $el.input_debug($inp.value, pos1c, pos2c, "CUR"));
+
+    $inp.value = $el._inp_old;
+    $inp.setSelectionRange(pos1a, pos2a);
+    $el._persist_timer = null;
   }
 
   on_backspace(ev) {
@@ -765,10 +961,17 @@ class El extends HTMLElement {
     if (pos1 === 0) return;
     if (pos2 === 0) return;
 
-    $el.set_input(txt.slice(0, pos1 - 1), pos1 - 1, pos1 - 1, "BACKSPACE");
+    $el.set_input(
+      txt.slice(0, pos1 - 1),
+      pos1 - 1,
+      pos1 - 1,
+      false,
+      "BACKSPACE"
+    );
 
-    ev.preventDefault();
+    if (ev) ev.preventDefault();
     $el._do_autocomplete = true;
+    // $el._backspace_timer = null;
     $el.set_selected(null);
     $el.handle_search_input($inp.value);
   }
@@ -853,7 +1056,7 @@ class El extends HTMLElement {
   // =====  SETTERS  =====
   //
 
-  input_select(pos1, pos2) {
+  input_select(pos1, pos2, is_autocomplete) {
     const $el = this;
     const $inp = $el._$inp;
     $el._pos_persist = true;
@@ -866,10 +1069,10 @@ class El extends HTMLElement {
     // Detect user changing selection, so that the search can reflect the
     // non-selected beginning part.
 
-    if (pos1 === $el._pos1 && pos2 === $el._pos2) return;
+    if (pos1 === $el._pos_old[0] && pos2 === $el._pos_old[1]) return;
 
-    $el._pos1 = pos1;
-    $el._pos2 = pos2;
+    $el._pos_old = [pos1, pos2];
+    if (!is_autocomplete) $el._pos_unc = [pos1, pos2];
 
     // Android virtual keyboard updating input field has async selection
     // handling, causing selected text to be deselected shortly afterwards.
@@ -880,10 +1083,11 @@ class El extends HTMLElement {
     $inp.setSelectionRange(pos1, pos2);
   }
 
-  set_input(text, pos1, pos2, reason) {
+  set_input(text, pos1, pos2, is_autocomplete, reason) {
     const $el = this;
-    $el._$inp.value = $el._input = text;
-    $el.input_select(pos1, pos2);
+    $el._$inp.value = $el._inp_old = text;
+    if (!is_autocomplete) $el._inp_unc = text;
+    $el.input_select(pos1, pos2, is_autocomplete);
     // log($el.input_debug(text, pos1, pos2, reason));
   }
 
@@ -909,7 +1113,7 @@ class El extends HTMLElement {
     const txt = $el.format(opt_id);
     if ($el._internals) $el._internals.setFormValue(opt_id, txt);
 
-    $el.set_input(txt, txt.length, txt.length, "selected");
+    $el.set_input(txt, txt.length, txt.length, false, "selected");
     $el.handle_search_input(txt);
   }
 
@@ -1291,10 +1495,10 @@ class El extends HTMLElement {
    * value */
   revert() {
     const $el = this;
-    $el._$inp.value = $el._input = "";
+    $el._$inp.value = $el._inp_old = "";
     // log(`»« reverted`)
     $el.set_selected(null);
-    $el._retain_opened = false; 
+    $el._retain_opened = false;
     $el.handle_search_input("");
   }
 
@@ -1717,16 +1921,26 @@ class El extends HTMLElement {
     let text = $el.format(opt_id);
     text += base.slice(text.length);
 
+    let pos1 = base.length;
+    let pos2 = text.length;
+
+    // if ($el._pos_backspace) {
+    //   $el._pos_backspace = false;
+    //   pos1 = Math.max(pos1 - 1, 0);
+    // }
+
     // The autocomplete must be in sync with current $inp value
-    $el.set_input(text, base.length, text.length, `autocomplete ${opt_id}`);
+    $el.set_input(text, pos1, pos2, true, `autocomplete ${opt_id}`);
     $el.highlight_option(opt_id);
   }
 
-  maybe_autocomplete(res) {
+  maybe_autocomplete(res, do_autocomplete) {
     const $el = this;
-    // log("maybe_autocomplete", $el._do_autocomplete, $el._query, res.query);
+    if (do_autocomplete == null) do_autocomplete = $el._do_autocomplete;
 
-    if (!$el._do_autocomplete) return;
+    // log("maybe_autocomplete", do_autocomplete, $el._query, res.query);
+
+    if (!do_autocomplete) return;
     if (!$el.hasAttribute("autocomplete")) return;
 
     if ($el._query !== res.query) return;
@@ -1743,6 +1957,19 @@ class El extends HTMLElement {
 
     // Only autocomplete if positioned at the end
     if (pos1 < pos2 || pos2 < text_base.length) return;
+
+    /*    
+    Don't change things soon after user input, since virtual keyboards does
+    changes async in multiple steps. Usually with about 10ms steps, but will
+    increase to about 100ms if it detects a recent change. I hate these types
+    of probabalistic operations. A time should be set on how slow the system
+    is at the moment.
+    */
+    if (Date.now() - $el._inp_time < $el._inp_debounce) {
+      const delay = $el._inp_time + $el._inp_debounce - Date.now();
+      setTimeout(() => $el.maybe_autocomplete(res, true), delay);
+      return;
+    }
 
     $el.autocomplete(text_base, opt_id);
   }
@@ -1840,7 +2067,7 @@ class El extends HTMLElement {
     exit_after
     
     */
-    
+
     const $el = this;
     const { found = [], count = 0 } = res;
 
@@ -2071,7 +2298,6 @@ class El extends HTMLElement {
     height: 100%;
   }
   `;
-
 }
 
 // log("element defined");
