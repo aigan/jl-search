@@ -239,7 +239,7 @@ For handling virtual keyboards with async multi-step changes.
     const $el = this;
     const $main = $el._$main;
     $main.setAttribute("popover", "manual");
-    $main.setAttribute("anchor", $el.id);
+    $main.style.setProperty("position-anchor", $el._anchor_id);
     caps.popover.then(() => {
       $main.classList.add("loaded-popover");
       // $opts.style.animationIterationCount = "0";
@@ -441,7 +441,9 @@ For handling virtual keyboards with async multi-step changes.
   setup_$el() {
     const $el = this;
     const name = $el.constructor.is;
-    if (!$el.id) $el.setAttribute("id", `${name}-anchor-${$el._id}`);
+
+		$el._anchor_id = `--${name}-${$el._id}`
+    $el.style.setProperty("anchor-name", $el._anchor_id);
 
     $el._ev.el = {
       focusout: (ev) => $el.on_focusout(ev),
