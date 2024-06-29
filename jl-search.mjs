@@ -442,8 +442,12 @@ For handling virtual keyboards with async multi-step changes.
     const $el = this;
     const name = $el.constructor.is;
 
-		$el._anchor_id = `--${name}-${$el._id}`
-    $el.style.setProperty("anchor-name", $el._anchor_id);
+		// Add anchor-name in subclasses if using shadowRoot
+		if( !$el.shadowRoot ){
+			$el._anchor_id = `--${name}-${$el._id}`
+			$el.style.setProperty("anchor-name", $el._anchor_id);
+		}
+			
 
     $el._ev.el = {
       focusout: (ev) => $el.on_focusout(ev),

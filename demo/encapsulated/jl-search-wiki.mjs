@@ -259,6 +259,11 @@ class JlSearchWiki extends JlSearch {
       }
     }
 
+		// Adding anchor name
+    const name = this.constructor.is;
+		this._anchor_id = `--${name}-${this._id}`;
+		shrouded += `:host {anchor-name: ${this._anchor_id}}\n`;
+		
     const css = new CSSStyleSheet();
     await css.replace(shrouded);
     this.shadowRoot.adoptedStyleSheets.push(css);
